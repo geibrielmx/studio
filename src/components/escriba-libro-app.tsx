@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, type ChangeEvent } from 'react';
@@ -8,8 +9,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import NextImage from 'next/image'; // Renamed to avoid conflict
-import { UploadCloud, BookOpen, Type, User, Download, Settings, Palette, FileText, FileCode, Info, Image as ImageIcon } from 'lucide-react'; // ImageIcon from Lucide
+import NextImage from 'next/image';
+import { UploadCloud, BookOpen, Type, User, Download, Settings, Palette, FileText, FileCode, Info, Image as ImageIcon, Paintbrush } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface FormattingOptions {
+  fontFamily: string;
+  fontSize: number; // in px
+  textColor: string;
+  previewBackgroundColor: string;
+  previewPadding: number; // in px
+  lineHeight: number;
+}
 
 export default function EscribaLibroApp() {
   const [book, setBook] = useState<Book>({
@@ -18,15 +29,38 @@ export default function EscribaLibroApp() {
     content: '',
     coverImage: null,
   });
+
+  const [formattingOptions, setFormattingOptions] = useState<FormattingOptions>({
+    fontFamily: 'var(--font-sans)',
+    fontSize: 16,
+    textColor: 'hsl(var(--foreground))',
+    previewBackgroundColor: 'hsl(var(--card))', // Use card background for preview default
+    previewPadding: 24,
+    lineHeight: 1.6,
+  });
+
   const [activeTab, setActiveTab] = useState('editor');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    // Try to get foreground and card HSL values for defaults after mount
+    // to ensure CSS variables are available.
+    if (typeof window !== 'undefined') {
+        const computedStyle = window.getComputedStyle(document.documentElement);
+        const fgColor = computedStyle.getPropertyValue('--foreground').trim();
+        const cardBgColor = computedStyle.getPropertyValue('--card').trim();
+
+        if (fgColor) {
+            setFormattingOptions(prev => ({...prev, textColor: `hsl(${fgColor})`}));
+        }
+        if (cardBgColor) {
+            setFormattingOptions(prev => ({...prev, previewBackgroundColor: `hsl(${cardBgColor})`}));
+        }
+    }
   }, []);
 
   if (!mounted) {
-    // Basic skeleton or loading state to avoid hydration mismatch with Tabs
     return (
       <div className="flex justify-center items-center min-h-screen p-8">
         <Card className="w-full max-w-4xl">
@@ -83,6 +117,10 @@ export default function EscribaLibroApp() {
       });
     }
   };
+
+  const handleFormattingChange = (field: keyof FormattingOptions, value: string | number) => {
+    setFormattingOptions(prev => ({ ...prev, [field]: value }));
+  };
   
 
   return (
@@ -96,6 +134,9 @@ export default function EscribaLibroApp() {
         <TabsList className="mx-auto mb-6 shadow-sm">
           <TabsTrigger value="editor" className="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base">
             <BookOpen className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Editor
+          </TabsTrigger>
+          <TabsTrigger value="formatting" className="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base">
+            <Paintbrush className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Formatting
           </TabsTrigger>
           <TabsTrigger value="cover" className="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base">
             <Palette className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Cover
@@ -129,6 +170,94 @@ export default function EscribaLibroApp() {
                     </Label>
                     <Input id="insertImageContent" type="file" accept="image/*" onChange={handleImageInsertToContent} className="hidden" />
                     <p className="text-xs text-muted-foreground mt-1">Images are appended as Markdown-style links.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="formatting" className="mt-0 flex-1 w-full">
+              <Card className="shadow-lg h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-xl md:text-2xl">
+                    <Paintbrush className="mr-2" /> Formatting Options
+                  </CardTitle>
+                  <CardDescription>Customize the appearance of your book's content in the preview.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 p-4 md:p-6">
+                  <div>
+                    <Label htmlFor="fontFamily">Font Family</Label>
+                    <Select onValueChange={(value) => handleFormattingChange('fontFamily', value)} defaultValue={formattingOptions.fontFamily}>
+                      <SelectTrigger id="fontFamily" className="mt-1">
+                        <SelectValue placeholder="Select font family" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="var(--font-sans)">System Sans-serif</SelectItem>
+                        <SelectItem value="serif">System Serif</SelectItem>
+                        <SelectItem value="Arial, sans-serif">Arial</SelectItem>
+                        <SelectItem value="'Times New Roman', Times, serif">Times New Roman</SelectItem>
+                        <SelectItem value="Georgia, serif">Georgia</SelectItem>
+                        <SelectItem value="Verdana, sans-serif">Verdana</SelectItem>
+                        <SelectItem value="'Courier New', Courier, monospace">Courier New</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="fontSize">Font Size (px)</Label>
+                      <Input
+                        id="fontSize"
+                        type="number"
+                        value={formattingOptions.fontSize}
+                        onChange={(e) => handleFormattingChange('fontSize', Math.max(8, parseInt(e.target.value, 10) || formattingOptions.fontSize))}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="lineHeight">Line Height</Label>
+                      <Input
+                        id="lineHeight"
+                        type="number"
+                        value={formattingOptions.lineHeight}
+                        step="0.1"
+                        onChange={(e) => handleFormattingChange('lineHeight', parseFloat(e.target.value) || formattingOptions.lineHeight)}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="textColor">Text Color</Label>
+                      <Input
+                        id="textColor"
+                        type="color"
+                        value={formattingOptions.textColor}
+                        onChange={(e) => handleFormattingChange('textColor', e.target.value)}
+                        className="mt-1 h-10 p-1 w-full"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="previewBackgroundColor">Preview Background</Label>
+                      <Input
+                        id="previewBackgroundColor"
+                        type="color"
+                        value={formattingOptions.previewBackgroundColor}
+                        onChange={(e) => handleFormattingChange('previewBackgroundColor', e.target.value)}
+                        className="mt-1 h-10 p-1 w-full"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="previewPadding">Preview Padding (px)</Label>
+                    <Input
+                      id="previewPadding"
+                      type="number"
+                      value={formattingOptions.previewPadding}
+                      onChange={(e) => handleFormattingChange('previewPadding', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      className="mt-1"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -213,10 +342,20 @@ export default function EscribaLibroApp() {
                 <CardDescription>See your book take shape in real-time.</CardDescription>
               </CardHeader>
               <CardContent className="overflow-y-auto p-4 md:p-6" style={{maxHeight: 'calc(100vh - 12rem)'}}>
-                {activeTab === 'editor' || activeTab === 'export' ? (
-                  <div className="prose prose-sm max-w-none p-3 md:p-4 border rounded-md min-h-[200px] bg-white shadow-inner">
-                    <h2 className="text-xl md:text-2xl font-bold mb-1 text-center" style={{color: 'hsl(var(--foreground))'}}>{book.title}</h2>
-                    <p className="text-xs md:text-sm text-center italic mb-4" style={{color: 'hsl(var(--muted-foreground))'}}>by {book.author}</p>
+                {activeTab === 'editor' || activeTab === 'export' || activeTab === 'formatting' ? (
+                  <div 
+                    className="prose max-w-none border rounded-md min-h-[200px] shadow-inner"
+                    style={{
+                      fontFamily: formattingOptions.fontFamily,
+                      fontSize: `${formattingOptions.fontSize}px`,
+                      color: formattingOptions.textColor,
+                      backgroundColor: formattingOptions.previewBackgroundColor,
+                      padding: `${formattingOptions.previewPadding}px`,
+                      lineHeight: formattingOptions.lineHeight,
+                    }}
+                  >
+                    <h2 className="text-xl md:text-2xl font-bold mb-1 text-center">{book.title}</h2>
+                    <p className="text-xs md:text-sm text-center italic mb-4">by {book.author}</p>
                     {book.content.split('\n').map((paragraph, index) => {
                       const imageMatch = paragraph.match(/!\[(.*?)\]\((.*?)\)/);
                       if (imageMatch) {
@@ -231,13 +370,13 @@ export default function EscribaLibroApp() {
                               className="max-w-full h-auto inline-block rounded shadow-md"
                               data-ai-hint="illustration drawing"
                             />
-                            {altText && <p className="text-xs italic text-muted-foreground mt-1">{altText}</p>}
+                            {altText && <p className="text-xs italic mt-1" style={{opacity: 0.8}}>{altText}</p>}
                           </div>
                         );
                       }
-                      return <p key={index} className="my-1.5 md:my-2 text-sm md:text-base" style={{color: 'hsl(var(--foreground))'}}>{paragraph || <>&nbsp;</>}</p>;
+                      return <p key={index} className="my-1.5 md:my-2">{paragraph || <>&nbsp;</>}</p>;
                     })}
-                    {book.content.trim() === '' && <p className="text-muted-foreground italic text-sm md:text-base">Content preview will appear here...</p>}
+                    {book.content.trim() === '' && <p className="italic" style={{opacity: 0.6}}>Content preview will appear here...</p>}
                   </div>
                 ) : activeTab === 'cover' ? (
                   <div className="p-2 md:p-4 border rounded-md aspect-[2/3] max-w-xs md:max-w-sm mx-auto bg-card flex flex-col items-center justify-center shadow-lg overflow-hidden relative">
@@ -262,3 +401,4 @@ export default function EscribaLibroApp() {
     </div>
   );
 }
+
