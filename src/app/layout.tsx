@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Inter as FontSans } from 'next/font/google'; // Using Inter as Geist is not standard
 import './globals.css';
@@ -10,8 +11,8 @@ const fontSans = FontSans({
 })
 
 export const metadata: Metadata = {
-  title: 'EscribaLibro - Your Book Writing Companion',
-  description: 'Create, edit, and format your book with ease. Design covers, insert images, and export in multiple formats.',
+  title: 'EscribaLibro - Tu Compañero de Escritura de Libros',
+  description: 'Crea, edita y formatea tu libro con facilidad. Diseña portadas, inserta imágenes y exporta en múltiples formatos.',
 };
 
 export default function RootLayout({
@@ -20,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", fontSans.variable)}>
         {children}
         <Toaster />
@@ -28,3 +29,5 @@ export default function RootLayout({
     </html>
   );
 }
+
+    

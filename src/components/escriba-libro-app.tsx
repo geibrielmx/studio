@@ -46,7 +46,7 @@ const PAGE_HEADER_FOOTER_ESTIMATED_HEIGHT_PX = 70;
 const IMAGE_LINE_EQUIVALENT = 15; // How many text lines an image is roughly equivalent to
 
 // LocalStorage keys
-const LOCALSTORAGE_BOOK_KEY = 'escribaLibro_book_v2'; // Incremented version to avoid conflicts
+const LOCALSTORAGE_BOOK_KEY = 'escribaLibro_book_v2';
 const LOCALSTORAGE_FORMATTING_KEY = 'escribaLibro_formatting_v2';
 
 function createPageContentElements(
@@ -69,7 +69,7 @@ function createPageContentElements(
         <div key={`${pageKeyPrefix}-line-${index}`} className="my-3 md:my-4 text-center">
           <NextImage
             src={imgSrc}
-            alt={altText || 'Inserted image'}
+            alt={altText || 'Imagen insertada'}
             width={300}
             height={200}
             className="max-w-full h-auto inline-block rounded shadow-md"
@@ -99,10 +99,10 @@ function createPageObject(
   return {
     pageNumber,
     headerLeft: bookTitle,
-    headerRight: currentChapterTitleForHeader, // Use the chapter title active when page started
+    headerRight: currentChapterTitleForHeader,
     contentElements: elements,
-    rawContentLines: lines, // Store raw lines
-    footerCenter: `Page ${pageNumber}`,
+    rawContentLines: lines,
+    footerCenter: `Página ${pageNumber}`,
     isStartOfChapter: isStartOfChapter || (lines.length > 0 && lines[0].startsWith('## ')),
     chapterTitle: chapterTitle || (lines.length > 0 && lines[0].startsWith('## ') ? lines[0].substring(3).trim() : undefined),
   };
@@ -125,7 +125,7 @@ function generatePagePreviews(
 
   let currentPageLines: string[] = [];
   let currentPageNumber = 1;
-  let currentChapterForHeader = "Introduction"; // Default if no chapters yet
+  let currentChapterForHeader = "Introducción"; // Default if no chapters yet
   let linesAccumulatedOnCurrentPage = 0;
 
   for (let i = 0; i < allLines.length; i++) {
@@ -136,27 +136,23 @@ function generatePagePreviews(
       lineCost = IMAGE_LINE_EQUIVALENT;
     }
 
-    // Improved chapter handling: If it's a chapter heading and current page has content, start new page.
     if (isChapterHeading) {
-      if (currentPageLines.length > 0) { // If there's content on current page, finalize it
+      if (currentPageLines.length > 0) {
         output.push(createPageObject(currentPageNumber, book.title, currentChapterForHeader, currentPageLines, formattingOptions));
         currentPageLines = [];
         linesAccumulatedOnCurrentPage = 0;
         currentPageNumber++;
       }
-      currentChapterForHeader = line.substring(3).trim(); // Update chapter for header
-      // Chapter heading always starts on its own line on the new/current page
+      currentChapterForHeader = line.substring(3).trim();
       currentPageLines.push(line);
-      linesAccumulatedOnCurrentPage += lineCost; // Cost of chapter heading line
-      // If this is the last line, push immediately
+      linesAccumulatedOnCurrentPage += lineCost;
       if (i === allLines.length - 1) {
          output.push(createPageObject(currentPageNumber, book.title, currentChapterForHeader, currentPageLines, formattingOptions));
          currentPageLines = [];
       }
-      continue; // Move to next line
+      continue;
     }
 
-    // If current line (text or image) will overflow, and there's existing content, push page
     if (linesAccumulatedOnCurrentPage + lineCost > linesPerPage && currentPageLines.length > 0) {
       output.push(createPageObject(currentPageNumber, book.title, currentChapterForHeader, currentPageLines, formattingOptions));
       currentPageLines = [];
@@ -168,14 +164,12 @@ function generatePagePreviews(
     linesAccumulatedOnCurrentPage += lineCost;
   }
 
-  // Push any remaining lines
   if (currentPageLines.length > 0) {
     output.push(createPageObject(currentPageNumber, book.title, currentChapterForHeader, currentPageLines, formattingOptions));
   }
 
-  // Ensure at least one page if content is empty but title exists
   if (output.length === 0 && (book.content.trim() === "" || book.content === null)) {
-     output.push(createPageObject(1, book.title, "Start of Book", [""], formattingOptions));
+     output.push(createPageObject(1, book.title, "Inicio del Libro", [""], formattingOptions));
   }
   return output;
 }
@@ -200,8 +194,8 @@ function generateTableOfContents(paginatedPreview: PagePreviewData[]): ChapterEn
 export default function EscribaLibroApp() {
   const { toast } = useToast();
   const [book, setBook] = useState<Book>({
-    title: 'Untitled Book',
-    author: 'Unknown Author',
+    title: 'Libro sin Título',
+    author: 'Autor Desconocido',
     content: '',
     coverImage: null,
     tableOfContents: [],
@@ -228,7 +222,6 @@ export default function EscribaLibroApp() {
       const savedBook = localStorage.getItem(LOCALSTORAGE_BOOK_KEY);
       if (savedBook) {
         const parsedBook = JSON.parse(savedBook);
-        // Ensure tableOfContents is initialized if not present in saved data
         setBook({...parsedBook, tableOfContents: parsedBook.tableOfContents || [] });
       }
       const savedFormatting = localStorage.getItem(LOCALSTORAGE_FORMATTING_KEY);
@@ -249,8 +242,8 @@ export default function EscribaLibroApp() {
         }
       }
     } catch (error) {
-      console.error("Failed to load data from localStorage", error);
-      toast({ title: "Error", description: "Could not load saved data.", variant: "destructive" });
+      console.error("Fallo al cargar datos desde localStorage", error);
+      toast({ title: "Error", description: "No se pudieron cargar los datos guardados.", variant: "destructive" });
     }
   }, [toast]);
 
@@ -274,7 +267,7 @@ export default function EscribaLibroApp() {
       setBook(prev => ({ ...prev, tableOfContents: newToc }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book.content, book.title, formattingOptions, mounted]); // book.title for headerLeft in preview
+  }, [book.content, book.title, formattingOptions, mounted]);
 
 
   if (!mounted) {
@@ -282,7 +275,7 @@ export default function EscribaLibroApp() {
       <div className="flex justify-center items-center min-h-screen p-8">
         <Card className="w-full max-w-4xl">
           <CardHeader className="text-center">
-            <CardTitle className="text-3xl">Loading EscribaLibro...</CardTitle>
+            <CardTitle className="text-3xl">Cargando EscribaLibro...</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="animate-pulse space-y-4">
@@ -305,8 +298,8 @@ export default function EscribaLibroApp() {
     localStorage.setItem(LOCALSTORAGE_BOOK_KEY, JSON.stringify(book));
     localStorage.setItem(LOCALSTORAGE_FORMATTING_KEY, JSON.stringify(formattingOptions));
     toast({
-      title: "Progress Saved!",
-      description: "Your book data and formatting preferences have been saved locally.",
+      title: "¡Progreso Guardado!",
+      description: "Los datos de tu libro y las preferencias de formato se han guardado localmente.",
       duration: 3000,
     });
   };
@@ -337,7 +330,7 @@ export default function EscribaLibroApp() {
 
   const handleImageInsertToContent = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
-      const imageName = event.target.files[0].name || 'image';
+      const imageName = event.target.files[0].name || 'imagen';
       handleFileRead(event.target.files[0], (base64Image) => {
         const imageMarkdown = `\n![${imageName}](${base64Image})\n`;
         setBook(prev => ({ ...prev, content: prev.content + imageMarkdown }));
@@ -370,7 +363,7 @@ export default function EscribaLibroApp() {
     isToc: boolean = false
   ): HTMLDivElement => {
     const pageDiv = document.createElement('div');
-    pageDiv.style.width = '750px'; // Fixed width for rendering quality
+    pageDiv.style.width = '750px';
     pageDiv.style.padding = `${formattingOptions.previewPadding}px`;
     pageDiv.style.fontFamily = formattingOptions.fontFamily;
     pageDiv.style.fontSize = `${formattingOptions.fontSize}px`;
@@ -379,13 +372,12 @@ export default function EscribaLibroApp() {
     pageDiv.style.lineHeight = String(formattingOptions.lineHeight);
     pageDiv.style.display = 'flex';
     pageDiv.style.flexDirection = 'column';
-    // Approx A4 aspect ratio for content box (750px width base)
     pageDiv.style.minHeight = `${(750 * 841.89) / 595.28 - 2 * formattingOptions.previewPadding}px`;
     pageDiv.style.boxSizing = 'border-box';
 
     if (isToc && 'type' in pageData && pageData.type === 'toc') {
       const tocHeader = document.createElement('h2');
-      tocHeader.textContent = "Table of Contents";
+      tocHeader.textContent = "Índice";
       tocHeader.style.textAlign = 'center';
       tocHeader.style.fontSize = '1.5em';
       tocHeader.style.fontWeight = 'bold';
@@ -403,41 +395,22 @@ export default function EscribaLibroApp() {
         li.style.padding = '5px 0';
         li.style.borderBottom = `1px dotted hsla(${getComputedStyle(document.documentElement).getPropertyValue('--foreground').trim()}, 0.5)`;
 
-
         const titleSpan = document.createElement('span');
         titleSpan.textContent = entry.title;
-        titleSpan.style.marginRight = '10px'; // Add some space
-        titleSpan.style.flexGrow = '1'; // Allow title to take space
-
-        // Create a span for the dots
-        const dotsSpan = document.createElement('span');
-        dotsSpan.style.flexGrow = '10'; // Allow dots to take most space
-        dotsSpan.style.overflow = 'hidden'; // Hide overflowing dots
-        dotsSpan.style.whiteSpace = 'nowrap';
-        dotsSpan.style.display = 'block';
-        dotsSpan.style.textAlign = 'right'; // Align dots to the right before page number
-        
-        // Simple dot filling, might need more sophisticated for perfect alignment
-        // For now, just a fixed number of dots or calculate based on available width (complex)
-        // Let's use a simpler approach: just a visual separation for now
-        // We'll rely on flexbox to push page number to the right.
-        // For visual dots, let's add them to the title span's :after or make it simpler.
-        // Simplified: remove dynamic dots for now, rely on justify-between.
-        // titleSpan.textContent = entry.title + " ..................... "; // simple dots
+        titleSpan.style.marginRight = '10px';
+        titleSpan.style.flexGrow = '1';
 
         const pageSpan = document.createElement('span');
-        pageSpan.textContent = String(entry.estimatedPage); // Using estimatedPage from ChapterEntry
+        pageSpan.textContent = String(entry.estimatedPage);
         pageSpan.style.marginLeft = '10px';
 
         li.appendChild(titleSpan);
-        // li.appendChild(dotsSpan); // Add this if implementing dynamic dots later
         li.appendChild(pageSpan);
         ul.appendChild(li);
       });
       pageDiv.appendChild(ul);
     } else if (!isToc && 'rawContentLines' in pageData) {
       const typedPageData = pageData as PagePreviewData;
-      // Header
       const headerDiv = document.createElement('div');
       headerDiv.style.display = 'flex';
       headerDiv.style.justifyContent = 'space-between';
@@ -454,7 +427,6 @@ export default function EscribaLibroApp() {
       headerDiv.appendChild(headerRight);
       pageDiv.appendChild(headerDiv);
 
-      // Content Area
       const contentAreaDiv = document.createElement('div');
       contentAreaDiv.style.flexGrow = '1';
       typedPageData.rawContentLines.forEach(line => {
@@ -466,9 +438,9 @@ export default function EscribaLibroApp() {
           imgContainer.style.margin = '1em 0';
           const img = document.createElement('img');
           img.src = imgSrc;
-          img.alt = altText || 'Inserted image';
+          img.alt = altText || 'Imagen insertada';
           img.style.maxWidth = '80%';
-          img.style.maxHeight = '300px'; // Constraint
+          img.style.maxHeight = '300px';
           img.style.height = 'auto';
           img.style.borderRadius = '4px';
           img.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
@@ -482,18 +454,17 @@ export default function EscribaLibroApp() {
           contentAreaDiv.appendChild(imgContainer);
         } else {
           const p = document.createElement('p');
-          p.innerHTML = line.trim() === '' ? '&nbsp;' : line; // Use innerHTML for ## etc. to render
+          p.innerHTML = line.trim() === '' ? '&nbsp;' : line;
           p.style.margin = "0.5em 0";
           if (line.startsWith('## ')) {
             p.style.fontSize = '1.5em'; p.style.fontWeight = 'bold'; p.style.marginTop = '1em'; p.style.marginBottom = '0.5em';
-            p.textContent = line.substring(3).trim(); // Clean chapter title for display
+            p.textContent = line.substring(3).trim();
           }
           contentAreaDiv.appendChild(p);
         }
       });
       pageDiv.appendChild(contentAreaDiv);
 
-      // Footer
       const footerDiv = document.createElement('div');
       footerDiv.style.textAlign = 'center';
       footerDiv.style.fontSize = '0.75em';
@@ -501,7 +472,7 @@ export default function EscribaLibroApp() {
       footerDiv.style.paddingTop = '5px';
       footerDiv.style.borderTop = `1px solid ${formattingOptions.textColor}`;
       footerDiv.style.marginTop = 'auto';
-      footerDiv.textContent = typedPageData.footerCenter;
+      footerDiv.textContent = typedPageData.footerCenter; // This is now `Página N`
       pageDiv.appendChild(footerDiv);
     }
     return pageDiv;
@@ -510,11 +481,11 @@ export default function EscribaLibroApp() {
 
   const handleExportToPdf = async () => {
     setIsExportingPdf(true);
-    toast({ title: "PDF Export Started", description: "Generating your book, please wait..." });
+    toast({ title: "Exportación a PDF Iniciada", description: "Generando tu libro, por favor espera..." });
 
     const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-    const pdfWidth = 595.28; // A4 width in points
-    const margin = 40; // points
+    const pdfWidth = 595.28;
+    const margin = 40;
     const usableWidth = pdfWidth - 2 * margin;
 
     const tempContainer = document.createElement('div');
@@ -522,9 +493,8 @@ export default function EscribaLibroApp() {
     document.body.appendChild(tempContainer);
 
     const renderedCanvases: { type: 'cover' | 'toc' | 'content', canvas: HTMLCanvasElement }[] = [];
-    const chapterPdfPageMap: ChapterEntry[] = []; // To store final PDF page numbers for ToC
+    const chapterPdfPageMap: ChapterEntry[] = [];
 
-    // 1. Render Cover
     if (book.coverImage) {
       const coverDiv = document.createElement('div');
       coverDiv.style.width = '750px'; coverDiv.style.height = `${(750 * 3) / 2}px`;
@@ -552,11 +522,10 @@ export default function EscribaLibroApp() {
       tempContainer.removeChild(coverDiv);
     }
 
-    // 2. Render Content Pages & collect chapter info for ToC
-    let currentContentPdfPage = 0; // This will be page number *within the content block*
+    let currentContentPdfPage = 0;
     for (const pageData of paginatedPreview) {
       currentContentPdfPage++;
-      const pdfPageData = { ...pageData, footerCenter: `Page ${currentContentPdfPage}` };
+      const pdfPageData = { ...pageData, footerCenter: `Página ${currentContentPdfPage}` };
       const pageDiv = createPdfPageHtml(pdfPageData);
       tempContainer.appendChild(pageDiv);
       const canvas = await html2canvas(pageDiv, { scale: 2, useCORS: true });
@@ -564,24 +533,20 @@ export default function EscribaLibroApp() {
       tempContainer.removeChild(pageDiv);
 
       if (pageData.isStartOfChapter && pageData.chapterTitle) {
-        // For ToC, page numbers are relative to the start of content section
         chapterPdfPageMap.push({ title: pageData.chapterTitle, estimatedPage: currentContentPdfPage });
       }
     }
 
-    // 3. Render ToC Page(s)
     if (chapterPdfPageMap.length > 0) {
-      const tocPageDiv = createPdfPageHtml({ type: 'toc', title: 'Table of Contents', entries: chapterPdfPageMap }, true);
+      const tocPageDiv = createPdfPageHtml({ type: 'toc', title: 'Índice', entries: chapterPdfPageMap }, true);
       tempContainer.appendChild(tocPageDiv);
       const canvas = await html2canvas(tocPageDiv, { scale: 2, useCORS: true });
       
-      // Insert ToC: if cover exists, after cover (index 1). Else at beginning (index 0).
       const tocInsertIndex = book.coverImage ? 1 : 0;
       renderedCanvases.splice(tocInsertIndex, 0, { type: 'toc', canvas });
       tempContainer.removeChild(tocPageDiv);
     }
 
-    // 4. Assemble PDF from all rendered canvases
     renderedCanvases.forEach((render, index) => {
       if (index > 0) pdf.addPage();
       const canvas = render.canvas;
@@ -594,8 +559,8 @@ export default function EscribaLibroApp() {
     pdf.save(`${book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'ebook'}.pdf`);
     setIsExportingPdf(false);
     toast({
-      title: "PDF Exported!",
-      description: "Your book has been exported as a PDF.",
+      title: "¡PDF Exportado!",
+      description: "Tu libro ha sido exportado como PDF.",
       duration: 3000,
     });
   };
@@ -605,9 +570,9 @@ export default function EscribaLibroApp() {
     <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-sans">
       <header className="mb-6 md:mb-10 text-center">
         <h1 className="text-3xl md:text-5xl font-bold" style={{ color: 'hsl(var(--primary))' }}>EscribaLibro</h1>
-        <p className="text-base md:text-lg text-muted-foreground mt-1 md:mt-2">Craft your story, beautifully.</p>
+        <p className="text-base md:text-lg text-muted-foreground mt-1 md:mt-2">Crea tu historia, hermosamente.</p>
          <Button onClick={handleSaveData} variant="outline" className="mt-4">
-          <Save className="mr-2 h-4 w-4" /> Save Progress
+          <Save className="mr-2 h-4 w-4" /> Guardar Progreso
         </Button>
       </header>
 
@@ -617,16 +582,16 @@ export default function EscribaLibroApp() {
             <BookOpen className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Editor
           </TabsTrigger>
            <TabsTrigger value="index" className="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base">
-            <ListOrdered className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Index
+            <ListOrdered className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Índice
           </TabsTrigger>
           <TabsTrigger value="formatting" className="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base">
-            <Paintbrush className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Formatting
+            <Paintbrush className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Formato
           </TabsTrigger>
           <TabsTrigger value="cover" className="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base">
-            <Palette className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Cover
+            <Palette className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Portada
           </TabsTrigger>
           <TabsTrigger value="export" className="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base">
-            <Download className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Export
+            <Download className="mr-2 h-4 w-4 md:h-5 md:w-5" /> Exportar
           </TabsTrigger>
         </TabsList>
 
@@ -636,24 +601,24 @@ export default function EscribaLibroApp() {
             <TabsContent value="editor" className="mt-0 flex-1 w-full">
               <Card className="shadow-lg h-full flex flex-col">
                 <CardHeader>
-                  <CardTitle className="flex items-center text-xl md:text-2xl"><BookOpen className="mr-2" />Content Editor</CardTitle>
-                  <CardDescription>Write and format your book's content. Use `## Chapter Title` for new chapters.</CardDescription>
+                  <CardTitle className="flex items-center text-xl md:text-2xl"><BookOpen className="mr-2" />Editor de Contenido</CardTitle>
+                  <CardDescription>Escribe y formatea el contenido de tu libro. Usa `## Título del Capítulo` para nuevos capítulos.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col p-4 md:p-6">
-                  <Label htmlFor="bookContent" className="mb-2 font-semibold">Book Content</Label>
+                  <Label htmlFor="bookContent" className="mb-2 font-semibold">Contenido del Libro</Label>
                   <Textarea
                     id="bookContent"
                     value={book.content}
                     onChange={(e) => handleContentChange(e.target.value)}
-                    placeholder="Start writing your masterpiece... Use '## Chapter Title' to define new chapters."
+                    placeholder="Empieza a escribir tu obra maestra... Usa `## Título del Capítulo` para definir nuevos capítulos."
                     className="flex-1 w-full min-h-[250px] md:min-h-[300px] text-sm md:text-base resize-y p-3 rounded-md shadow-inner"
                   />
                   <div className="mt-4">
                     <Label htmlFor="insertImageContent" className="cursor-pointer inline-flex items-center px-3 py-2 rounded-md border border-input bg-card hover:bg-accent hover:text-accent-foreground text-xs md:text-sm transition-colors duration-150">
-                      <UploadCloud className="mr-2 h-4 w-4" /> Insert Image
+                      <UploadCloud className="mr-2 h-4 w-4" /> Insertar Imagen
                     </Label>
                     <Input id="insertImageContent" type="file" accept="image/*" onChange={handleImageInsertToContent} className="hidden" />
-                    <p className="text-xs text-muted-foreground mt-1">Images are appended as Markdown-style links.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Las imágenes se añaden como enlaces estilo Markdown.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -662,8 +627,8 @@ export default function EscribaLibroApp() {
             <TabsContent value="index" className="mt-0 flex-1 w-full">
               <Card className="shadow-lg h-full">
                 <CardHeader>
-                  <CardTitle className="flex items-center text-xl md:text-2xl"><ListOrdered className="mr-2" />Table of Contents</CardTitle>
-                  <CardDescription>Automatically generated index based on `## Chapter Title` markers. Page numbers are estimates for preview.</CardDescription>
+                  <CardTitle className="flex items-center text-xl md:text-2xl"><ListOrdered className="mr-2" />Índice</CardTitle>
+                  <CardDescription>Índice generado automáticamente basado en los marcadores `## Título del Capítulo`. Los números de página son estimaciones para la vista previa.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6">
                   {book.tableOfContents && book.tableOfContents.length > 0 ? (
@@ -678,7 +643,7 @@ export default function EscribaLibroApp() {
                       </ul>
                     </ScrollArea>
                   ) : (
-                    <p className="text-muted-foreground italic">No chapters defined yet. Use `## Chapter Title` in the editor to create chapters for the index.</p>
+                    <p className="text-muted-foreground italic">Aún no se han definido capítulos. Usa `## Título del Capítulo` en el editor para crear capítulos para el índice.</p>
                   )}
                 </CardContent>
               </Card>
@@ -688,20 +653,20 @@ export default function EscribaLibroApp() {
               <Card className="shadow-lg h-full">
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl md:text-2xl">
-                    <Paintbrush className="mr-2" /> Formatting Options
+                    <Paintbrush className="mr-2" /> Opciones de Formato
                   </CardTitle>
-                  <CardDescription>Customize the appearance of your book's content in the preview and PDF.</CardDescription>
+                  <CardDescription>Personaliza la apariencia del contenido de tu libro en la vista previa y el PDF.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 md:p-6">
                   <div>
-                    <Label htmlFor="fontFamily">Font Family</Label>
+                    <Label htmlFor="fontFamily">Fuente</Label>
                     <Select onValueChange={(value) => handleFormattingChange('fontFamily', value)} value={formattingOptions.fontFamily}>
                       <SelectTrigger id="fontFamily" className="mt-1">
-                        <SelectValue placeholder="Select font family" />
+                        <SelectValue placeholder="Seleccionar fuente" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="var(--font-sans)">System Sans-serif</SelectItem>
-                        <SelectItem value="serif">System Serif</SelectItem>
+                        <SelectItem value="var(--font-sans)">Sans-serif del Sistema</SelectItem>
+                        <SelectItem value="serif">Serif del Sistema</SelectItem>
                         <SelectItem value="Arial, sans-serif">Arial</SelectItem>
                         <SelectItem value="'Times New Roman', Times, serif">Times New Roman</SelectItem>
                         <SelectItem value="Georgia, serif">Georgia</SelectItem>
@@ -713,7 +678,7 @@ export default function EscribaLibroApp() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="fontSize">Font Size (px)</Label>
+                      <Label htmlFor="fontSize">Tamaño de Fuente (px)</Label>
                       <Input
                         id="fontSize"
                         type="number"
@@ -723,7 +688,7 @@ export default function EscribaLibroApp() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="lineHeight">Line Height</Label>
+                      <Label htmlFor="lineHeight">Altura de Línea</Label>
                       <Input
                         id="lineHeight"
                         type="number"
@@ -738,7 +703,7 @@ export default function EscribaLibroApp() {
 
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor="textColor">Text Color</Label>
+                      <Label htmlFor="textColor">Color del Texto</Label>
                       <Input
                         id="textColor"
                         type="color"
@@ -748,7 +713,7 @@ export default function EscribaLibroApp() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="pageBackgroundColor">Page Background</Label>
+                      <Label htmlFor="pageBackgroundColor">Fondo de Página</Label>
                       <Input
                         id="pageBackgroundColor"
                         type="color"
@@ -758,7 +723,7 @@ export default function EscribaLibroApp() {
                       />
                     </div>
                      <div>
-                      <Label htmlFor="previewAreaBackground">Area Background</Label>
+                      <Label htmlFor="previewAreaBackground">Fondo del Área</Label>
                       <Input
                         id="previewAreaBackground"
                         type="color"
@@ -770,7 +735,7 @@ export default function EscribaLibroApp() {
                   </div>
 
                   <div>
-                    <Label htmlFor="previewPadding">Page Padding (px)</Label>
+                    <Label htmlFor="previewPadding">Relleno de Página (px)</Label>
                     <Input
                       id="previewPadding"
                       type="number"
@@ -787,44 +752,44 @@ export default function EscribaLibroApp() {
             <TabsContent value="cover" className="mt-0 flex-1 w-full">
               <Card className="shadow-lg h-full">
                 <CardHeader>
-                  <CardTitle className="flex items-center text-xl md:text-2xl"><Palette className="mr-2" />Cover Designer</CardTitle>
-                  <CardDescription>Customize your book's cover.</CardDescription>
+                  <CardTitle className="flex items-center text-xl md:text-2xl"><Palette className="mr-2" />Diseñador de Portada</CardTitle>
+                  <CardDescription>Personaliza la portada de tu libro.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 md:p-6">
                   <div>
-                    <Label htmlFor="bookTitleInput" className="font-semibold">Book Title</Label>
+                    <Label htmlFor="bookTitleInput" className="font-semibold">Título del Libro</Label>
                     <Input
                       id="bookTitleInput"
                       value={book.title}
                       onChange={(e) => handleBookDetailsChange('title', e.target.value)}
-                      placeholder="Your Book Title"
+                      placeholder="El Título de tu Libro"
                       className="mt-1 text-sm md:text-base p-2 shadow-inner"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="authorName" className="font-semibold">Author Name</Label>
+                    <Label htmlFor="authorName" className="font-semibold">Nombre del Autor</Label>
                     <Input
                       id="authorName"
                       value={book.author}
                       onChange={(e) => handleBookDetailsChange('author', e.target.value)}
-                      placeholder="Author's Name"
+                      placeholder="Nombre del Autor"
                       className="mt-1 text-sm md:text-base p-2 shadow-inner"
                     />
                   </div>
                   <div>
-                    <Label className="font-semibold">Cover Image</Label>
+                    <Label className="font-semibold">Imagen de Portada</Label>
                     <div className="mt-1 flex items-center gap-2">
                       <Label htmlFor="coverImageUploadFile" className="cursor-pointer inline-flex items-center px-3 py-2 rounded-md border border-input bg-card hover:bg-accent hover:text-accent-foreground text-xs md:text-sm transition-colors duration-150">
-                        <UploadCloud className="mr-2 h-4 w-4" /> Upload Image
+                        <UploadCloud className="mr-2 h-4 w-4" /> Subir Imagen
                       </Label>
                        <Input id="coverImageUploadFile" type="file" accept="image/*" onChange={handleCoverImageUpload} className="hidden" />
                       {book.coverImage && (
-                        <Button variant="outline" size="sm" onClick={() => setBook(prev => ({...prev, coverImage: null}))} className="text-xs md:text-sm">Remove</Button>
+                        <Button variant="outline" size="sm" onClick={() => setBook(prev => ({...prev, coverImage: null}))} className="text-xs md:text-sm">Quitar</Button>
                       )}
                     </div>
                     {book.coverImage && (
                        <div className="mt-4 p-2 border rounded-md aspect-[2/3] max-w-[200px] mx-auto bg-muted flex flex-col items-center justify-center shadow-inner overflow-hidden relative">
-                         <NextImage src={book.coverImage} alt="Cover Mini Preview" layout="fill" objectFit="cover" data-ai-hint="book cover" />
+                         <NextImage src={book.coverImage} alt="Miniatura de Portada" layout="fill" objectFit="cover" data-ai-hint="book cover" />
                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent flex flex-col items-center justify-end p-2 text-center z-10">
                            <h3 className="text-sm font-bold text-white [text-shadow:1px_1px_2px_rgba(0,0,0,0.6)] break-words">{book.title}</h3>
                            <p className="text-xs text-gray-200 [text-shadow:1px_1px_1px_rgba(0,0,0,0.4)] break-words"><em>{book.author}</em></p>
@@ -839,26 +804,26 @@ export default function EscribaLibroApp() {
             <TabsContent value="export" className="mt-0 flex-1 w-full">
               <Card className="shadow-lg h-full">
                 <CardHeader>
-                  <CardTitle className="flex items-center text-xl md:text-2xl"><Download className="mr-2" />Export Options</CardTitle>
-                  <CardDescription>Download your book in various formats.</CardDescription>
+                  <CardTitle className="flex items-center text-xl md:text-2xl"><Download className="mr-2" />Opciones de Exportación</CardTitle>
+                  <CardDescription>Descarga tu libro en varios formatos.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 p-4 md:p-6">
                   <Button className="w-full justify-start text-sm md:text-base" onClick={handleExportToPdf} variant="outline" disabled={isExportingPdf}>
                     {isExportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2" style={{color: 'hsl(var(--primary))'}} />}
-                    {isExportingPdf ? 'Exporting PDF...' : 'Export as PDF'}
+                    {isExportingPdf ? 'Exportando PDF...' : 'Exportar como PDF'}
                   </Button>
                   <Button className="w-full justify-start text-sm md:text-base" variant="outline" disabled>
-                    <FileText className="mr-2" style={{color: 'hsl(var(--primary))'}} /> Export as DOCX (Soon)
+                    <FileText className="mr-2" style={{color: 'hsl(var(--primary))'}} /> Exportar como DOCX (Próximamente)
                   </Button>
                    <Button className="w-full justify-start text-sm md:text-base" variant="outline" disabled>
-                    <FileText className="mr-2" style={{color: 'hsl(var(--primary))'}} /> Export as TXT (Soon)
+                    <FileText className="mr-2" style={{color: 'hsl(var(--primary))'}} /> Exportar como TXT (Próximamente)
                   </Button>
                   <Button className="w-full justify-start text-sm md:text-base" variant="outline" disabled>
-                    <FileCode className="mr-2" style={{color: 'hsl(var(--primary))'}} /> Export as HTML (Soon)
+                    <FileCode className="mr-2" style={{color: 'hsl(var(--primary))'}} /> Exportar como HTML (Próximamente)
                   </Button>
                   <div className="pt-2 text-xs md:text-sm text-muted-foreground flex items-start">
                     <Info size={16} className="mr-2 mt-0.5 shrink-0" />
-                    <span>PDF export includes cover and a Table of Contents. Pagination in preview and PDF ToC are based on content flow.</span>
+                    <span>La exportación a PDF incluye portada y Tabla de Contenido. La paginación en la vista previa y en la TdC del PDF se basa en el flujo del contenido.</span>
                   </div>
                 </CardContent>
               </Card>
@@ -869,8 +834,8 @@ export default function EscribaLibroApp() {
           <div className="w-full md:w-1/2">
             <Card className="shadow-lg h-full sticky top-8">
               <CardHeader>
-                <CardTitle className="flex items-center text-xl md:text-2xl"><Settings className="mr-2" />Live Preview</CardTitle>
-                <CardDescription>See your book take shape in real-time. Pagination is an approximation.</CardDescription>
+                <CardTitle className="flex items-center text-xl md:text-2xl"><Settings className="mr-2" />Vista Previa en Vivo</CardTitle>
+                <CardDescription>Mira cómo tu libro toma forma en tiempo real. La paginación es una aproximación.</CardDescription>
               </CardHeader>
               <CardContent
                 className="overflow-y-auto"
@@ -915,15 +880,15 @@ export default function EscribaLibroApp() {
                       }}
                     >
                       <h2 className="text-xl md:text-2xl font-bold mb-1 text-center">{book.title}</h2>
-                      <p className="text-xs md:text-sm text-center italic mb-4">by {book.author}</p>
-                      <p className="italic text-center" style={{opacity: 0.6}}>Content preview will appear here, paginated...</p>
-                      { (book.content === null || book.content.trim() === "") && <p className="text-xs text-center mt-2">(Start typing in the editor or add chapters)</p>}
+                      <p className="text-xs md:text-sm text-center italic mb-4">por {book.author}</p>
+                      <p className="italic text-center" style={{opacity: 0.6}}>La vista previa del contenido aparecerá aquí, paginada...</p>
+                      { (book.content === null || book.content.trim() === "") && <p className="text-xs text-center mt-2">(Comienza a escribir en el editor o añade capítulos)</p>}
                     </div>
                   )
                 ) : activeTab === 'cover' ? (
                   <div className="p-2 md:p-4 border rounded-md aspect-[2/3] max-w-xs md:max-w-sm mx-auto flex flex-col items-center justify-center shadow-lg overflow-hidden relative" style={{backgroundColor: formattingOptions.pageBackgroundColor}}>
                     {book.coverImage ? (
-                      <NextImage src={book.coverImage} alt="Book Cover Preview" layout="fill" objectFit="cover" data-ai-hint="book cover" />
+                      <NextImage src={book.coverImage} alt="Vista Previa de Portada" layout="fill" objectFit="cover" data-ai-hint="book cover" />
                     ) : (
                       <div className="w-full h-full bg-muted flex items-center justify-center">
                         <ImageIcon size={48} className="text-muted-foreground opacity-50" />
@@ -938,7 +903,7 @@ export default function EscribaLibroApp() {
               </CardContent>
                { (activeTab === 'editor' || activeTab === 'export' || activeTab === 'formatting' || activeTab === 'index') && paginatedPreview.length > 0 && (
                 <CardFooter className="text-xs text-muted-foreground justify-center py-2 border-t">
-                  Showing {paginatedPreview.length} preview page(s).
+                  Mostrando {paginatedPreview.length} página(s) de vista previa.
                 </CardFooter>
               )}
             </Card>
@@ -948,3 +913,5 @@ export default function EscribaLibroApp() {
     </div>
   );
 }
+
+    
