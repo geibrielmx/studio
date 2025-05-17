@@ -86,7 +86,7 @@ function createPageContentElements(
             className="max-w-full h-auto inline-block rounded shadow-md"
             data-ai-hint="illustration drawing"
             style={{
-              maxWidth: `calc(100% - ${formattingOptions.previewPadding * 0}px)`, // This calculation seems off, should be previewPadding * 2 if padding is on both sides. For now, it's 0.
+              maxWidth: `calc(100% - ${formattingOptions.previewPadding * 0}px)`, 
             }}
           />
           {altText && <p className="text-xs italic mt-1" style={{ opacity: 0.8 }}>{altText}</p>}
@@ -113,7 +113,7 @@ function createPageObject(
     headerRight: currentChapterTitleForHeader,
     contentElements: elements,
     rawContentLines: lines,
-    footerCenter: `Página ${pageNumber}`, // This will be overridden for PDF export
+    footerCenter: `Página ${pageNumber}`, 
     isStartOfChapter: isStartOfChapter || (lines.length > 0 && lines[0].startsWith('## ')),
     chapterTitle: chapterTitle || (lines.length > 0 && lines[0].startsWith('## ') ? lines[0].substring(3).trim() : undefined),
   };
@@ -1253,7 +1253,7 @@ export default function EscribaLibroApp() {
                 )}
               </CardContent>
               {activeTab !== 'cover' && paginatedPreview.length > 0 && (
-                <CardFooter className="flex items-center justify-between py-3 border-t">
+                <CardFooter className="flex items-center justify-center gap-3 py-3 border-t">
                   <Button
                     variant="outline"
                     size="sm"
