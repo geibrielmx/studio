@@ -3,46 +3,59 @@
 @tailwind utilities;
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    --background: 40 43% 92%; /* Cream - #F0EAD6 */
+    --foreground: 30 8% 26%; /* Dark Taupe - #4A443D */
+
+    --card: 60 56% 93%; /* Beige - #F5F5DC */
+    --card-foreground: 30 8% 26%; /* Dark Taupe - #4A443D */
+
+    --popover: 60 56% 93%; /* Beige - #F5F5DC */
+    --popover-foreground: 30 8% 26%; /* Dark Taupe - #4A443D */
+
+    --primary: 77 19% 51%; /* Muted Olive - #8F9B6A */
+    --primary-foreground: 0 0% 100%; /* White */
+
+    --secondary: 77 22% 72%; /* Lighter Muted Olive - #A8B886 */
+    --secondary-foreground: 30 8% 26%; /* Dark Taupe - #4A443D */
+
+    --muted: 40 25% 90%; /* Lighter Cream - #E0DACE */
+    --muted-foreground: 27 7% 45%; /* Medium Taupe - #7A706A */
+
+    --accent: 77 30% 65%; /* Brighter Olive - #9EB07A */
+    --accent-foreground: 30 8% 26%; /* Dark Taupe */
+
+    --destructive: 0 84.2% 60.2%; /* Default Red */
+    --destructive-foreground: 0 0% 98%; /* Default Light */
+
+    --border: 40 25% 81%; /* Slightly darker cream - #D3C9B8 */
+    --input: 40 25% 81%; /* Slightly darker cream - #D3C9B8 */
+    --ring: 77 19% 51%; /* Muted Olive (same as primary) */
+    
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Sidebar specific colors - adjusted to theme */
+    --sidebar-background: 60 56% 93%; /* Beige - card color */
+    --sidebar-foreground: 30 8% 26%; /* Dark Taupe - card-foreground color */
+    --sidebar-primary: 77 19% 51%; /* Muted Olive - primary color */
+    --sidebar-primary-foreground: 0 0% 100%; /* White - primary-foreground */
+    --sidebar-accent: 77 30% 65%; /* Brighter Olive - accent color */
+    --sidebar-accent-foreground: 30 8% 26%; /* Dark Taupe - accent-foreground */
+    --sidebar-border: 40 25% 81%; /* Border color */
+    --sidebar-ring: 77 19% 51%; /* Ring color */
   }
+
   .dark {
+    /* Keeping dark mode defaults, can be themed later if needed */
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
@@ -67,6 +80,7 @@ body {
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -85,4 +99,21 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Basic styles for preview content */
+.prose {
+  line-height: 1.6;
+}
+.prose h2 {
+  @apply text-2xl font-bold mb-4;
+}
+.prose p {
+  @apply mb-4;
+}
+.prose em {
+  @apply italic;
+}
+.prose img {
+  @apply my-4 rounded shadow-md max-w-full h-auto mx-auto block;
 }
