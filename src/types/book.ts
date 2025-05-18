@@ -5,18 +5,37 @@ export interface ChapterEntry {
 }
 
 export type AuthorImagePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+export type CoverTextPosition = 'top-left' | 'top-center' | 'top-right' | 
+                                'middle-left' | 'middle-center' | 'middle-right' |
+                                'bottom-left' | 'bottom-center' | 'bottom-right';
 
-// Note: id and lastModified are no longer used for localStorage persistence of multiple books.
-// They might be useful if individual TXT files adopt a metadata scheme, but for now, are simplified.
 export interface Book {
-  // id: string; // No longer needed for list management in localStorage
+  id: string; 
   title: string;
   subtitle?: string;
   author: string;
-  content: string;
-  coverImage?: string | null; // base64 string for the image or URL - session only
-  authorImage?: string | null; // base64 string for the author's photo - session only
+  editorial?: string;
+  content: string; // Markdown content, images are placeholders like [Imagen: alt text]
+  coverImage?: string | null; // Placeholder/Marker for session, actual image handled by user
+  authorImage?: string | null; // Placeholder/Marker for session
   authorImagePosition?: AuthorImagePosition;
+  titlePosition?: CoverTextPosition;
+  subtitlePosition?: CoverTextPosition;
+  editorialPosition?: CoverTextPosition;
   tableOfContents?: ChapterEntry[];
-  // lastModified: number; // No longer tracked in this way
+  lastModified: number; 
+}
+
+export interface FormattingOptions {
+  fontFamily: string;
+  fontSize: number;
+  textColor: string;
+  previewBackgroundColor: string;
+  pageBackgroundColor: string;
+  previewPadding: number;
+  lineHeight: number;
+  pageNumberAlignment: 'left' | 'center' | 'right';
+  tocPosition: 'start' | 'end';
+  // firstLetterUppercase: boolean; // For later implementation if clarified
+  // chapterTitleLineColor?: string; // For later implementation if clarified
 }
