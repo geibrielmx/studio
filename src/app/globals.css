@@ -127,17 +127,6 @@ body {
   @apply my-4 rounded shadow-md max-w-full h-auto mx-auto block;
 }
 
-/* Style for first letter of paragraphs in preview */
-.book-paragraph::first-letter {
-  font-size: 1.75em; /* Approx 28px if base is 16px */
-  font-weight: bold;
-  float: left;
-  margin-right: 0.07em;
-  line-height: 0.8; /* Adjust for better alignment with the first line */
-  padding-top: 0.1em; /* Fine-tune vertical alignment */
-  color: hsl(var(--primary)); /* Use primary color for emphasis */
-}
-
 .book-paragraph {
   text-align: justify;
   text-indent: 1.5em; /* Indent first line of paragraph */
@@ -145,18 +134,8 @@ body {
 .book-paragraph:first-of-type {
   text-indent: 0; /* No indent for the very first paragraph of a section/page */
 }
-.book-paragraph:first-of-type::first-letter { /* Style for first letter of first paragraph */
-  font-size: 2.5em; /* Larger for the very first letter */
-  line-height: 0.7;
-  padding-top: 0.05em;
-}
 
-/* Ensure first paragraph after a chapter heading is not indented and has larger first letter */
+/* Ensure first paragraph after a chapter heading is not indented */
 .chapter-heading + .book-paragraph {
   text-indent: 0;
-}
-.chapter-heading + .book-paragraph::first-letter {
-  font-size: 2.5em;
-  line-height: 0.7;
-  padding-top: 0.05em;
 }
