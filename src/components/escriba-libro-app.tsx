@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import NextImage from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { UploadCloud, BookOpen, Type, User, Settings, Palette, FileText, Image as ImageIcon, Paintbrush, Save, Loader2, ListOrdered, FolderOpen, FileDown, FileCode, FilePlus, Trash2, ChevronLeft, ChevronRight, UserSquare2 } from 'lucide-react';
+import { UploadCloud, BookOpen, Type, User, Settings, Palette, FileText, Image as ImageIcon, Paintbrush, Save, Loader2, ListOrdered, FolderOpen, FileDown, FileCode, FilePlus, Trash2, ChevronLeft, ChevronRight, UserSquare2, FileSearch } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -43,20 +43,11 @@ interface PagePreviewData {
 
 const PAGE_CONTENT_TARGET_HEIGHT_PX = 680;
 const PAGE_HEADER_FOOTER_ESTIMATED_HEIGHT_PX = 70;
-const IMAGE_LINE_EQUIVALENT = 15; // Approximate lines an image might occupy
+const IMAGE_LINE_EQUIVALENT = 15; 
 
-const LOCALSTORAGE_BOOKS_LIST_KEY = 'escribaLibro_books_list_v5';
-const LOCALSTORAGE_ACTIVE_BOOK_ID_KEY = 'escribaLibro_activeBookId_v5';
 const LOCALSTORAGE_FORMATTING_KEY = 'escribaLibro_formatting_v5';
-const LOCALSTORAGE_COVER_IMAGE_PREFIX = 'escribaLibro_coverImage_';
-const LOCALSTORAGE_AUTHOR_IMAGE_PREFIX = 'escribaLibro_authorImage_';
-
-const COVER_IMAGE_MARKER = '__ESCLIBRO_COVER_IMAGE_STORED__';
-const AUTHOR_IMAGE_MARKER = '__ESCLIBRO_AUTHOR_IMAGE_STORED__';
-
 
 const createInitialBook = (): Book => ({
-  id: Date.now().toString() + Math.random().toString(36).substring(2, 9), // More unique ID
   title: 'Libro sin Título',
   subtitle: '',
   author: 'Autor Desconocido',
@@ -65,7 +56,6 @@ const createInitialBook = (): Book => ({
   authorImage: null,
   authorImagePosition: 'bottom-right',
   tableOfContents: [],
-  lastModified: Date.now(),
 });
 
 
@@ -82,7 +72,7 @@ function createPageContentElements(
       isStartOfChapter = true;
       chapterTitle = paragraph.substring(3).trim();
     }
-    const imageMatch = paragraph.match(/!\[(.*?)\]\((.*?)\)/);
+    const imageMatch = paragraph.match(/!\[(.*?)\]\((data:image\/.*?)\)/); // Only match data URIs for rendering
     if (imageMatch) {
       const [, altText, imgSrc] = imageMatch;
       return (
@@ -101,6 +91,9 @@ function createPageContentElements(
           {altText && <p className="text-xs italic mt-1" style={{ opacity: 0.8 }}>{altText}</p>}
         </div>
       );
+    } else if (paragraph.match(/!\[(.*?)\]\((.*?)\)/)) { // Match other image links as placeholders
+        const [, altText] = paragraph.match(/!\[(.*?)\]\((.*?)\)/)!;
+        return <p key={`${pageKeyPrefix}-line-${index}`} className="my-1.5 md:my-2 italic text-muted-foreground text-center">[Imagen: {altText || 'Referencia de imagen externa'}]</p>;
     }
     return <p key={`${pageKeyPrefix}-line-${index}`} className="my-1.5 md:my-2">{paragraph.trim() === '' ? <>&nbsp;</> : paragraph}</p>;
   });
@@ -151,7 +144,7 @@ function generatePagePreviews(
     const line = allLines[i];
     const isChapterHeading = line.startsWith('## ');
     let lineCost = 1;
-    if (/!\[(.*?)\]\((.*?)\)/.test(line)) {
+    if (/!\[(.*?)\]\(data:image\/.*?\)/.test(line)) { // Count only data URIs for height calculation
       lineCost = IMAGE_LINE_EQUIVALENT;
     }
 
@@ -215,10 +208,7 @@ function generateTableOfContents(paginatedPreview: PagePreviewData[]): ChapterEn
 export default function EscribaLibroApp() {
   const { toast } = useToast();
   const [mounted, setMounted] = useState(false);
-
-  const [books, setBooks] = useState<Book[]>([]);
-  const [activeBookId, setActiveBookId] = useState<string | null>(null);
-  const [currentBook, setCurrentBook] = useState<Book>(() => createInitialBook());
+  const [currentBook, setCurrentBook] = useState<Book>(createInitialBook());
 
   const [formattingOptions, setFormattingOptions] = useState<FormattingOptions>({
     fontFamily: 'var(--font-sans)',
@@ -233,53 +223,15 @@ export default function EscribaLibroApp() {
   const [activeTab, setActiveTab] = useState('editor');
   const [paginatedPreview, setPaginatedPreview] = useState<PagePreviewData[]>([]);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
-  const [isBookListDialogOpen, setIsBookListDialogOpen] = useState(false);
   const [currentPreviewPageIndex, setCurrentPreviewPageIndex] = useState(0);
   const [isPageTransitioning, setIsPageTransitioning] = useState(false);
   
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadDataFromLocalStorage = useCallback(() => {
+  // Load only formatting options from localStorage
+  const loadFormattingFromLocalStorage = useCallback(() => {
     try {
-      const savedBooksListJson = localStorage.getItem(LOCALSTORAGE_BOOKS_LIST_KEY);
-      const savedActiveBookId = localStorage.getItem(LOCALSTORAGE_ACTIVE_BOOK_ID_KEY);
       const savedFormattingJson = localStorage.getItem(LOCALSTORAGE_FORMATTING_KEY);
-
-      let loadedBooks: Book[] = [];
-      if (savedBooksListJson) {
-        const parsedBooks: Partial<Book>[] = JSON.parse(savedBooksListJson);
-        loadedBooks = parsedBooks.map((bookData: Partial<Book>) => {
-          const fullBook: Book = { ...createInitialBook(), id: bookData.id!, ...bookData }; 
-
-          if (fullBook.coverImage === COVER_IMAGE_MARKER) {
-            fullBook.coverImage = localStorage.getItem(`${LOCALSTORAGE_COVER_IMAGE_PREFIX}${fullBook.id}`) || null;
-          }
-          if (fullBook.authorImage === AUTHOR_IMAGE_MARKER) {
-            fullBook.authorImage = localStorage.getItem(`${LOCALSTORAGE_AUTHOR_IMAGE_PREFIX}${fullBook.id}`) || null;
-          }
-          return fullBook;
-        });
-      }
-      setBooks(loadedBooks);
-
-      let bookToLoad: Book | undefined;
-      if (savedActiveBookId && loadedBooks.length > 0) {
-        bookToLoad = loadedBooks.find(b => b.id === savedActiveBookId);
-      }
-
-      if (!bookToLoad && loadedBooks.length > 0) {
-        bookToLoad = [...loadedBooks].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0))[0];
-      }
-
-      if (bookToLoad) {
-        setCurrentBook(bookToLoad);
-        setActiveBookId(bookToLoad.id);
-      } else {
-        const newBook = createInitialBook();
-        setCurrentBook(newBook);
-        setActiveBookId(newBook.id);
-        setBooks([newBook]); 
-      }
-
       if (savedFormattingJson) {
         setFormattingOptions(JSON.parse(savedFormattingJson));
       } else {
@@ -297,154 +249,46 @@ export default function EscribaLibroApp() {
         }
       }
     } catch (error) {
-      console.error("Fallo al cargar datos desde localStorage", error);
-      toast({ title: "Error de Carga", description: "No se pudieron cargar los datos guardados. Se iniciará con un libro nuevo.", variant: "destructive" });
-      const newBook = createInitialBook();
-      setCurrentBook(newBook);
-      setActiveBookId(newBook.id);
-      setBooks([newBook]);
+      console.error("Fallo al cargar opciones de formato desde localStorage", error);
+      toast({ title: "Error de Carga", description: "No se pudieron cargar las opciones de formato.", variant: "destructive" });
     }
-  }, [toast]); 
+  }, [toast]);
 
   useEffect(() => {
-    loadDataFromLocalStorage();
+    loadFormattingFromLocalStorage();
     setMounted(true);
-  }, [loadDataFromLocalStorage]);
+  }, [loadFormattingFromLocalStorage]);
 
-
+  // Save only formatting options to localStorage
  useEffect(() => {
     if (mounted) {
       try {
-        const booksForStorage = books.map(book => {
-          const bookToStore = { ...book }; // Create a mutable copy
-
-          // Handle Cover Image
-          if (bookToStore.coverImage && bookToStore.coverImage.startsWith('data:image')) {
-            try {
-              localStorage.setItem(`${LOCALSTORAGE_COVER_IMAGE_PREFIX}${bookToStore.id}`, bookToStore.coverImage);
-              bookToStore.coverImage = COVER_IMAGE_MARKER; 
-            } catch (imageError: any) {
-              if (imageError instanceof DOMException && (imageError.name === 'QuotaExceededError' || imageError.message.includes('quota'))) {
-                console.error(`Cover image for book ${bookToStore.id} is too large:`, imageError);
-                toast({
-                  title: "Imagen de Portada Demasiado Grande",
-                  description: `La imagen de portada para "${bookToStore.title}" es demasiado grande y no pudo guardarse. Por favor, usa una imagen más pequeña.`,
-                  variant: "destructive",
-                  duration: 7000,
-                });
-                bookToStore.coverImage = null; 
-              } else {
-                console.error(`Error saving cover image for book ${bookToStore.id}:`, imageError);
-                bookToStore.coverImage = null; 
-              }
-            }
-          } else if (bookToStore.coverImage === null) { 
-            localStorage.removeItem(`${LOCALSTORAGE_COVER_IMAGE_PREFIX}${bookToStore.id}`);
-          }
-
-          // Handle Author Image
-          if (bookToStore.authorImage && bookToStore.authorImage.startsWith('data:image')) {
-            try {
-              localStorage.setItem(`${LOCALSTORAGE_AUTHOR_IMAGE_PREFIX}${bookToStore.id}`, bookToStore.authorImage);
-              bookToStore.authorImage = AUTHOR_IMAGE_MARKER;
-            } catch (imageError: any) {
-              if (imageError instanceof DOMException && (imageError.name === 'QuotaExceededError' || imageError.message.includes('quota'))) {
-                console.error(`Author image for book ${bookToStore.id} is too large:`, imageError);
-                toast({
-                  title: "Foto de Autor Demasiado Grande",
-                  description: `La foto del autor para "${bookToStore.title}" es demasiado grande y no pudo guardarse. Por favor, usa una imagen más pequeña.`,
-                  variant: "destructive",
-                  duration: 7000,
-                });
-                bookToStore.authorImage = null;
-              } else {
-                console.error(`Error saving author image for book ${bookToStore.id}:`, imageError);
-                bookToStore.authorImage = null;
-              }
-            }
-          } else if (bookToStore.authorImage === null) {
-            localStorage.removeItem(`${LOCALSTORAGE_AUTHOR_IMAGE_PREFIX}${bookToStore.id}`);
-          }
-          return bookToStore;
-        });
-
-        localStorage.setItem(LOCALSTORAGE_BOOKS_LIST_KEY, JSON.stringify(booksForStorage));
-
-        if (activeBookId) {
-          localStorage.setItem(LOCALSTORAGE_ACTIVE_BOOK_ID_KEY, activeBookId);
-        }
         localStorage.setItem(LOCALSTORAGE_FORMATTING_KEY, JSON.stringify(formattingOptions));
-
-      } catch (error: any) { 
-        console.error("Error saving to localStorage (general):", error);
-        if (error instanceof DOMException && (error.name === 'QuotaExceededError' || error.message.includes('quota') )) {
-          toast({
-            title: "Error de Almacenamiento General",
-            description: "No se pudo guardar la lista de libros o la configuración. El almacenamiento local podría estar lleno. Intenta reducir la cantidad de contenido o el número de libros.",
-            variant: "destructive",
-            duration: 8000,
-          });
-        } else {
-           toast({
-            title: "Error al Guardar Inesperado",
-            description: "Ocurrió un error inesperado al intentar guardar el progreso.",
-            variant: "destructive",
-            duration: 5000,
-          });
-        }
+      } catch (error) {
+        console.error("Error saving formatting to localStorage:", error);
+        toast({
+          title: "Error al Guardar Formato",
+          description: "No se pudieron guardar las preferencias de formato.",
+          variant: "destructive"
+        });
       }
     }
-  }, [books, activeBookId, formattingOptions, mounted, toast]);
-
-
-  useEffect(() => {
-    if (mounted && activeBookId) {
-      const bookFromList = books.find(b => b.id === activeBookId);
-      if (bookFromList) {
-        if (currentBook.id !== bookFromList.id || JSON.stringify(currentBook) !== JSON.stringify(bookFromList)) {
-          setCurrentBook(bookFromList);
-        }
-      } else if (books.length > 0) {
-        const mostRecentBook = [...books].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0))[0];
-        setActiveBookId(mostRecentBook.id); 
-      } else {
-        handleNewBook(); 
-      }
-    } else if (mounted && !activeBookId && books.length > 0) {
-      const mostRecentBook = [...books].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0))[0];
-      setActiveBookId(mostRecentBook.id);
-    } else if (mounted && books.length === 0) {
-      handleNewBook();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBookId, books, mounted]); 
-
+  }, [formattingOptions, mounted, toast]);
 
   useEffect(() => {
-    if (mounted && activeBookId && currentBook && currentBook.id === activeBookId) {
-       const bookInList = books.find(b => b.id === activeBookId);
-       if (bookInList && JSON.stringify(currentBook) !== JSON.stringify(bookInList)) {
-         setBooks(prevBooks =>
-           prevBooks.map(b => (b.id === activeBookId ? currentBook : b))
-         );
-       }
-    }
-  }, [currentBook, activeBookId, mounted, books]);
-
-
-  useEffect(() => {
-    if (mounted && currentBook.id && activeBookId && currentBook.id === activeBookId) {
+    if (mounted) {
       const newPreview = generatePagePreviews(currentBook, formattingOptions);
       setPaginatedPreview(newPreview);
       setCurrentPreviewPageIndex(prevIdx => newPreview.length > 0 ? Math.min(prevIdx, newPreview.length - 1) : 0);
 
       const newToc = generateTableOfContents(newPreview);
+      // Only update TOC if it's actually different to prevent unnecessary re-renders
       if (JSON.stringify(newToc) !== JSON.stringify(currentBook.tableOfContents)) {
         setCurrentBook(prev => ({ ...prev, tableOfContents: newToc })); 
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentBook.content, currentBook.title, formattingOptions, mounted, currentBook.id, activeBookId]);
+  }, [currentBook.content, currentBook.title, formattingOptions, mounted]);
 
 
   if (!mounted) {
@@ -462,45 +306,102 @@ export default function EscribaLibroApp() {
     );
   }
 
-  const handleSaveData = () => {
-    if (!activeBookId || !currentBook) {
+  const handleSaveBookAsTxt = () => {
+    if (!currentBook) {
       toast({ title: "Error al Guardar", description: "No hay un libro activo para guardar.", variant: "destructive" });
       return;
     }
-    const bookToSave = {...currentBook, lastModified: Date.now()};
-    setCurrentBook(bookToSave); 
-    setBooks(prevBooks => prevBooks.map(b => b.id === activeBookId ? bookToSave : b));
+
+    let txtContent = `Título: ${currentBook.title || 'Sin Título'}\n`;
+    if(currentBook.subtitle) txtContent += `Subtítulo: ${currentBook.subtitle}\n`;
+    txtContent += `Autor: ${currentBook.author || 'Desconocido'}\n\n`;
+    
+    txtContent += "## Contenido del Libro ##\n";
+    // Replace base64 images with placeholders
+    const contentForTxt = (currentBook.content || '').replace(/!\[(.*?)\]\(data:image\/.*?;base64,.*?\)/g, '[Imagen: $1]');
+    txtContent += contentForTxt;
+
+    const filename = `${(currentBook.title || 'libro_escribalibro').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
+    const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
 
     toast({
-      title: "¡Progreso Guardado!",
-      description: `El libro "${bookToSave.title}" y las preferencias de formato se han guardado.`,
+      title: "¡Libro Guardado como TXT!",
+      description: `"${currentBook.title}" se ha descargado como ${filename}.`,
       duration: 3000,
     });
   };
+  
+  const handleOpenBookFromTxt = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        try {
+          const newBook = createInitialBook();
+          
+          const titleMatch = text.match(/^Título:\s*(.*)/m);
+          if (titleMatch) newBook.title = titleMatch[1].trim();
 
-  const handleOpenBookList = () => {
-    setIsBookListDialogOpen(true);
-  };
+          const subtitleMatch = text.match(/^Subtítulo:\s*(.*)/m);
+          if (subtitleMatch) newBook.subtitle = subtitleMatch[1].trim();
+          
+          const authorMatch = text.match(/^Autor:\s*(.*)/m);
+          if (authorMatch) newBook.author = authorMatch[1].trim();
 
-  const handleSelectBookToOpen = (bookId: string) => {
-    const bookToOpen = books.find(b => b.id === bookId);
-    if (bookToOpen) {
-      setActiveBookId(bookId); 
-      setIsBookListDialogOpen(false);
-      setActiveTab('editor');
-      setCurrentPreviewPageIndex(0);
-      toast({
-        title: "Libro Cargado",
-        description: `"${bookToOpen.title}" ahora está activo en el editor.`,
-        duration: 3000,
-      });
+          const contentHeader = "## Contenido del Libro ##\n";
+          const contentStartIndex = text.indexOf(contentHeader);
+          if (contentStartIndex !== -1) {
+            newBook.content = text.substring(contentStartIndex + contentHeader.length).trim();
+          } else {
+            // Fallback if header not found, assume rest is content
+            const lines = text.split('\n');
+            let contentStartLine = 0;
+            for(let i=0; i < lines.length; i++) {
+                if(lines[i].startsWith("Título:") || lines[i].startsWith("Subtítulo:") || lines[i].startsWith("Autor:") || lines[i].trim() === "") {
+                    contentStartLine = i + 1;
+                } else {
+                    break; 
+                }
+            }
+             // Try to find a reasonable start for content if "## Contenido del Libro ##" is missing
+            const potentialContentStart = text.split('\n\n').slice(1).join('\n\n'); // skip first block if metadata-like
+            newBook.content = potentialContentStart.trim() || text; // if no clear metadata, assume all is content
+          }
+          
+          // Images are not stored in TXT, so they will be null
+          newBook.coverImage = null;
+          newBook.authorImage = null;
+
+          setCurrentBook(newBook);
+          setActiveTab('editor');
+          setCurrentPreviewPageIndex(0);
+          toast({
+            title: "Libro Cargado desde TXT",
+            description: `"${newBook.title}" ahora está activo en el editor.`,
+            duration: 3000,
+          });
+        } catch (error) {
+          console.error("Error al parsear el archivo TXT:", error);
+          toast({ title: "Error de Archivo", description: "No se pudo leer el formato del archivo TXT.", variant: "destructive" });
+        }
+      };
+      reader.readAsText(file);
+      // Reset file input to allow opening the same file again
+      if(event.target) event.target.value = '';
     }
   };
 
+
   const handleNewBook = () => {
-    const newBook = createInitialBook();
-    setBooks(prevBooks => [...prevBooks, newBook]);
-    setActiveBookId(newBook.id); 
+    setCurrentBook(createInitialBook());
     setCurrentPreviewPageIndex(0);
     setActiveTab('editor');
     toast({
@@ -510,44 +411,16 @@ export default function EscribaLibroApp() {
     });
   };
 
-  const handleDeleteBook = (bookIdToDelete: string) => {
-    const bookToDelete = books.find(b => b.id === bookIdToDelete);
-    if (!bookToDelete) return;
-
-    const updatedBooks = books.filter(b => b.id !== bookIdToDelete);
-    setBooks(updatedBooks); 
-
-    localStorage.removeItem(`${LOCALSTORAGE_COVER_IMAGE_PREFIX}${bookIdToDelete}`);
-    localStorage.removeItem(`${LOCALSTORAGE_AUTHOR_IMAGE_PREFIX}${bookIdToDelete}`);
-
-    if (activeBookId === bookIdToDelete) {
-      if (updatedBooks.length > 0) {
-        const mostRecentBook = [...updatedBooks].sort((a,b) => (b.lastModified || 0) - (a.lastModified || 0))[0];
-        setActiveBookId(mostRecentBook.id);
-      } else {
-        setActiveBookId(null); 
-      }
-    }
-    setCurrentPreviewPageIndex(0);
-    toast({
-      title: "Libro Eliminado",
-      description: `El libro "${bookToDelete.title}" ha sido eliminado.`,
-      variant: "destructive",
-      duration: 3000,
-    });
-  };
-
-
   const handleContentChange = (newContent: string) => {
-    setCurrentBook(prev => ({ ...prev, content: newContent, lastModified: Date.now() }));
+    setCurrentBook(prev => ({ ...prev, content: newContent }));
   };
 
   const handleBookDetailsChange = (field: keyof Pick<Book, 'title' | 'author' | 'subtitle'>, value: string) => {
-    setCurrentBook(prev => ({ ...prev, [field]: value, lastModified: Date.now() }));
+    setCurrentBook(prev => ({ ...prev, [field]: value }));
   };
 
   const handleAuthorImagePositionChange = (value: AuthorImagePosition) => {
-    setCurrentBook(prev => ({ ...prev, authorImagePosition: value, lastModified: Date.now() }));
+    setCurrentBook(prev => ({ ...prev, authorImagePosition: value }));
   };
 
   const handleFileRead = (file: File, callback: (result: string) => void) => {
@@ -561,7 +434,7 @@ export default function EscribaLibroApp() {
   const handleCoverImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       handleFileRead(event.target.files[0], (base64Image) => {
-        setCurrentBook(prev => ({ ...prev, coverImage: base64Image, lastModified: Date.now() }));
+        setCurrentBook(prev => ({ ...prev, coverImage: base64Image }));
       });
     }
   };
@@ -569,7 +442,7 @@ export default function EscribaLibroApp() {
   const handleAuthorImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       handleFileRead(event.target.files[0], (base64Image) => {
-        setCurrentBook(prev => ({ ...prev, authorImage: base64Image, lastModified: Date.now() }));
+        setCurrentBook(prev => ({ ...prev, authorImage: base64Image }));
       });
     }
   };
@@ -579,7 +452,7 @@ export default function EscribaLibroApp() {
       const imageName = event.target.files[0].name || 'imagen';
       handleFileRead(event.target.files[0], (base64Image) => {
         const imageMarkdown = `\n![${imageName}](${base64Image})\n`;
-        setCurrentBook(prev => ({ ...prev, content: prev.content + imageMarkdown, lastModified: Date.now() }));
+        setCurrentBook(prev => ({ ...prev, content: prev.content + imageMarkdown }));
       });
     }
   };
@@ -821,7 +694,7 @@ export default function EscribaLibroApp() {
       contentAreaDiv.style.flexGrow = '1';
       contentAreaDiv.style.overflowY = 'hidden'; 
       typedPageData.rawContentLines.forEach(line => {
-        const imageMatch = line.match(/!\[(.*?)\]\((.*?)\)/);
+        const imageMatch = line.match(/!\[(.*?)\]\((data:image\/.*?)\)/); // Only render data URIs for PDF
         if (imageMatch) {
           const [, altText, imgSrc] = imageMatch;
           const imgContainer = document.createElement('div');
@@ -845,7 +718,13 @@ export default function EscribaLibroApp() {
           contentAreaDiv.appendChild(imgContainer);
         } else {
           const p = document.createElement('p');
-          p.innerHTML = line.trim() === '' ? '&nbsp;' : line; 
+          // If it's an image markdown but not a data URI, render placeholder for PDF
+          if (line.match(/!\[(.*?)\]\((.*?)\)/)) {
+             const [, altText] = line.match(/!\[(.*?)\]\((.*?)\)/)!;
+             p.innerHTML = `<span style="font-style: italic; color: #888;">[Imagen: ${altText || 'Referencia de imagen externa'}]</span>`;
+          } else {
+            p.innerHTML = line.trim() === '' ? '&nbsp;' : line; 
+          }
           p.style.margin = `${formattingOptions.fontSize * 0.4}px 0`; 
           p.style.textAlign = 'justify'; 
           if (line.startsWith('## ')) {
@@ -1016,8 +895,10 @@ export default function EscribaLibroApp() {
       txtContent += "\n";
     }
 
-    txtContent += "Contenido:\n";
-    txtContent += (currentBook.content || '').replace(/!\[.*?\]\(data:image\/.*?;base64,.*?\)/g, '[Imagen Omitida]'); 
+    txtContent += "## Contenido del Libro ##\n";
+    // Replace base64 images with placeholders
+    const contentForTxt = (currentBook.content || '').replace(/!\[(.*?)\]\(data:image\/.*?;base64,.*?\)/g, '[Imagen: $1]');
+    txtContent += contentForTxt;
 
     const filename = `${(currentBook.title || 'libro').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
     const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
@@ -1123,10 +1004,13 @@ export default function EscribaLibroApp() {
         if (line.startsWith('## ')) {
           return `<h2 class="chapter-title page-break-before">${line.substring(3).trim()}</h2>`;
         }
-        const imageMatch = line.match(/!\[(.*?)\]\((.*?)\)/);
+        const imageMatch = line.match(/!\[(.*?)\]\((data:image\/.*?)\)/); // Only data URIs for HTML
         if (imageMatch) {
           const [, altText, imgSrc] = imageMatch;
           return `<img src="${imgSrc}" alt="${altText || 'Imagen insertada'}" class="content-image" data-ai-hint="illustration drawing" />`;
+        } else if (line.match(/!\[(.*?)\]\((.*?)\)/)) { // Placeholder for other image links
+            const [, altText] = line.match(/!\[(.*?)\]\((.*?)\)/)!;
+             return `<p style="font-style: italic; color: #888; text-align: center;">[Imagen: ${altText || 'Referencia de imagen externa'}]</p>`;
         }
         return line.trim() === '' ? '<p>&nbsp;</p>' : `<p>${line}</p>`;
       })
@@ -1151,66 +1035,6 @@ export default function EscribaLibroApp() {
     toast({ title: "HTML Exportado", description: "Tu libro ha sido exportado como archivo HTML." });
   };
 
-  const BookListDialog = () => (
-    <Dialog open={isBookListDialogOpen} onOpenChange={setIsBookListDialogOpen}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Mis Libros</DialogTitle>
-          <DialogDescription>Selecciona un libro para abrirlo en el editor o elimina los que ya no necesites.</DialogDescription>
-        </DialogHeader>
-        {books.length > 0 ? (
-          <ScrollArea className="max-h-[60vh] my-4 pr-4">
-            <ul className="space-y-2">
-              {[...books].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0)).map((bookItem) => (
-                <li key={bookItem.id} className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50">
-                  <div>
-                    <p className="font-semibold">{bookItem.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Modificado: {new Date(bookItem.lastModified || Date.now()).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleSelectBookToOpen(bookItem.id)}>
-                      <BookOpen className="mr-2 h-4 w-4" /> Abrir
-                    </Button>
-                     <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm" disabled={books.length <= 1 && activeBookId === bookItem.id}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>¿Eliminar Libro?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Estás a punto de eliminar el libro "{bookItem.title}". Esta acción no se puede deshacer.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteBook(bookItem.id)}>
-                              Eliminar
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </ScrollArea>
-        ) : (
-          <p className="text-muted-foreground text-center py-8">No tienes libros guardados. ¡Empieza a escribir!</p>
-        )}
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="secondary">Cerrar</Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-
   const currentPreviewPageData = paginatedPreview[currentPreviewPageIndex];
 
   const authorImagePositionClasses: Record<AuthorImagePosition, string> = {
@@ -1229,11 +1053,18 @@ export default function EscribaLibroApp() {
             <Button onClick={handleNewBook} variant="outline" size="sm">
               <FilePlus className="mr-2 h-4 w-4" /> Nuevo Libro
             </Button>
-            <Button onClick={handleOpenBookList} variant="outline" size="sm">
-              <FolderOpen className="mr-2 h-4 w-4" /> Mis Libros
+            <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="sm">
+              <FileSearch className="mr-2 h-4 w-4" /> Abrir Libro (TXT)
             </Button>
-            <Button onClick={handleSaveData} variant="outline" size="sm" disabled={!activeBookId}>
-              <Save className="mr-2 h-4 w-4" /> Guardar Progreso
+            <Input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleOpenBookFromTxt} 
+                accept=".txt" 
+                className="hidden" 
+            />
+            <Button onClick={handleSaveBookAsTxt} variant="outline" size="sm">
+              <Save className="mr-2 h-4 w-4" /> Guardar Libro (TXT)
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1264,8 +1095,6 @@ export default function EscribaLibroApp() {
         </div>
         <p className="text-sm md:text-base text-muted-foreground mt-2 text-center sm:text-left container mx-auto">Crea tu historia, hermosamente.</p>
       </header>
-
-      <BookListDialog />
 
       <Tabs defaultValue="editor" value={activeTab} onValueChange={setActiveTab} className="flex flex-col container mx-auto">
         <TabsList className="mx-auto mb-6 shadow-sm w-full max-w-xl grid grid-cols-2 sm:grid-cols-4">
@@ -1305,7 +1134,7 @@ export default function EscribaLibroApp() {
                       <UploadCloud className="mr-2 h-4 w-4" /> Insertar Imagen en Contenido
                     </Label>
                     <Input id="insertImageContent" type="file" accept="image/*" onChange={handleImageInsertToContent} className="hidden" />
-                    <p className="text-xs text-muted-foreground mt-1">Las imágenes se añaden como enlaces estilo Markdown al final del contenido actual.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Las imágenes se añaden como enlaces estilo Markdown al final del contenido actual. Estas imágenes son para la sesión actual y se incluirán en exportaciones PDF/HTML, pero no se guardan en el archivo TXT.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1346,7 +1175,7 @@ export default function EscribaLibroApp() {
                   <CardTitle className="flex items-center text-xl md:text-2xl">
                     <Paintbrush className="mr-2 h-5 w-5 text-primary" /> Opciones de Formato
                   </CardTitle>
-                  <CardDescription>Personaliza la apariencia de tu libro en la vista previa y el PDF.</CardDescription>
+                  <CardDescription>Personaliza la apariencia de tu libro en la vista previa y el PDF. Estos ajustes se guardan en tu navegador.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 p-4 md:p-6">
                   <div className="space-y-2">
@@ -1417,7 +1246,7 @@ export default function EscribaLibroApp() {
               <Card className="shadow-lg h-full">
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl md:text-2xl"><Palette className="mr-2 h-5 w-5 text-primary" />Diseñador de Portada</CardTitle>
-                  <CardDescription>Personaliza la información y las imágenes de la portada de tu libro.</CardDescription>
+                  <CardDescription>Personaliza la información y las imágenes de la portada de tu libro. Estas imágenes son para la sesión actual y no se guardan en el archivo TXT.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6 p-4 md:p-6">
                   <div className="space-y-2">
@@ -1449,7 +1278,7 @@ export default function EscribaLibroApp() {
                       </Label>
                        <Input id="coverImageUploadFile" type="file" accept="image/*" onChange={handleCoverImageUpload} className="hidden" />
                       {currentBook.coverImage && (
-                        <Button variant="outline" size="sm" onClick={() => setCurrentBook(prev => ({...prev, coverImage: null, lastModified: Date.now()}))} className="text-xs">Quitar Imagen Principal</Button>
+                        <Button variant="outline" size="sm" onClick={() => setCurrentBook(prev => ({...prev, coverImage: null}))} className="text-xs">Quitar Imagen Principal</Button>
                       )}
                     </div>
                   </div>
@@ -1462,7 +1291,7 @@ export default function EscribaLibroApp() {
                        </Label>
                        <Input id="authorImageUploadFile" type="file" accept="image/*" onChange={handleAuthorImageUpload} className="hidden" />
                        {currentBook.authorImage && (
-                         <Button variant="outline" size="sm" onClick={() => setCurrentBook(prev => ({...prev, authorImage: null, lastModified: Date.now()}))} className="text-xs">Quitar Foto del Autor</Button>
+                         <Button variant="outline" size="sm" onClick={() => setCurrentBook(prev => ({...prev, authorImage: null}))} className="text-xs">Quitar Foto del Autor</Button>
                        )}
                      </div>
                      {currentBook.authorImage && (
@@ -1506,7 +1335,7 @@ export default function EscribaLibroApp() {
                     {!currentBook.coverImage && !currentBook.authorImage && (
                       <div className="mt-4 p-2 border border-dashed rounded-md aspect-[2/3] w-full max-w-[240px] mx-auto bg-muted/50 flex flex-col items-center justify-center text-muted-foreground">
                         <ImageIcon size={36} className="mb-2 opacity-70" />
-                        <p className="text-xs text-center">Sube imágenes para la portada y foto del autor.</p>
+                        <p className="text-xs text-center">Sube imágenes para la portada y foto del autor (solo para esta sesión).</p>
                       </div>
                     )}
                 </CardContent>
@@ -1555,7 +1384,7 @@ export default function EscribaLibroApp() {
                   </div>
                 ) : paginatedPreview.length > 0 && currentPreviewPageData ? (
                   <div
-                    key={`${currentPreviewPageData.pageNumber}-${currentBook.id}-${currentPreviewPageIndex}`} 
+                    key={`${currentPreviewPageData.pageNumber}-${currentPreviewPageIndex}`} 
                     className="page-simulation-wrapper mx-auto my-4 prose max-w-none"
                     style={{
                       ...simulatedPageStyle,
@@ -1639,4 +1468,3 @@ export default function EscribaLibroApp() {
     </div>
   );
 }
-
