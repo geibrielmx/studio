@@ -81,9 +81,11 @@ function createPageContentElements(
 ): { elements: JSX.Element[], chapterTitle?: string, isStartOfChapter?: boolean } {
   let isStartOfChapter = false;
   let chapterTitle: string | undefined = undefined;
+  let firstParagraph = true;
 
   const elements = lines.map((paragraph, index) => {
     if (paragraph.trim() === PAGE_BREAK_MARKER) {
+      firstParagraph = true; // Reset for new page
       return <p key={`${pageKeyPrefix}-line-${index}`} className="hidden-page-break-marker"></p>;
     }
     let isChapterHeadingLine = false;
@@ -92,11 +94,13 @@ function createPageContentElements(
         isStartOfChapter = true;
         chapterTitle = paragraph.substring(3).trim();
         isChapterHeadingLine = true;
+        firstParagraph = true; // Reset for new chapter
       }
     }
     const imageMatch = paragraph.match(/!\[(.*?)\]\((data:image\/.*?)\)/);
     if (imageMatch) {
       const [, altText, imgSrc] = imageMatch;
+      firstParagraph = false;
       return (
         <div key={`${pageKeyPrefix}-line-${index}`} className="my-3 md:my-4 text-center">
           <NextImage
@@ -115,10 +119,19 @@ function createPageContentElements(
       );
     } else if (paragraph.match(/!\[(.*?)\]\((.*?)\)/)) {
         const [, altText] = paragraph.match(/!\[(.*?)\]\((.*?)\)/)!;
+        firstParagraph = false;
         return <p key={`${pageKeyPrefix}-line-${index}`} className="my-1.5 md:my-2 italic text-muted-foreground text-center">[Imagen: {altText || 'Referencia de imagen externa'}]</p>;
     }
     
-    const pClassName = `my-1.5 md:my-2 book-paragraph ${isChapterHeadingLine ? 'chapter-heading font-bold text-xl md:text-2xl !text-left !indent-0 !pl-0 !pt-4 !pb-2 border-b-2 border-primary mb-4' : ''}`;
+    let pClassName = `my-1.5 md:my-2 book-paragraph ${isChapterHeadingLine ? 'chapter-heading font-bold text-xl md:text-2xl !text-left !indent-0 !pl-0 !pt-4 !pb-2 border-b-2 border-primary mb-4' : ''}`;
+    if (!isChapterHeadingLine && firstParagraph && paragraph.trim() !== '') {
+        pClassName += ' first-letter-capital';
+        firstParagraph = false;
+    } else if (isChapterHeadingLine) {
+        firstParagraph = true; // Next paragraph after heading should be capital
+    }
+
+
     const pContent = isChapterHeadingLine ? paragraph.substring(3).trim() : (paragraph.trim() === '' ? <>&nbsp;</> : paragraph);
 
     return <p key={`${pageKeyPrefix}-line-${index}`} className={pClassName}>{pContent}</p>;
@@ -301,14 +314,10 @@ export default function EscribaLibroApp() {
         localStorage.setItem(LOCALSTORAGE_FORMATTING_KEY, JSON.stringify(formattingOptions));
       } catch (error) {
         console.error("Error saving formatting to localStorage:", error);
-        toast({
-          title: "Error al Guardar Formato",
-          description: "No se pudieron guardar las preferencias de formato.",
-          variant: "destructive"
-        });
+        // Not showing toast for this as it can be spammy
       }
     }
-  }, [formattingOptions, mounted, toast]);
+  }, [formattingOptions, mounted]);
 
   useEffect(() => {
     if (mounted) {
@@ -477,10 +486,10 @@ export default function EscribaLibroApp() {
   const handleFileRead = (file: File, callback: (result: string) => void) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      if ((reader.result as string).length > 5 * 1024 * 1024) { 
+      if ((reader.result as string).length > 2 * 1024 * 1024) { // Limit image size to 2MB for base64
         toast({
           title: "Imagen Demasiado Grande",
-          description: "La imagen seleccionada es muy grande. Intenta con una de menor tamaño.",
+          description: "La imagen seleccionada es muy grande (máx 2MB). Intenta con una de menor tamaño.",
           variant: "destructive",
           duration: 5000
         });
@@ -826,7 +835,9 @@ export default function EscribaLibroApp() {
       const contentAreaDiv = document.createElement('div');
       contentAreaDiv.style.flexGrow = '1';
       contentAreaDiv.style.overflowY = 'hidden'; 
-      let firstParagraphAfterChapter = false;
+      let firstParagraphOfPage = true;
+      let isAfterChapterHeading = false;
+
       typedPageData.rawContentLines.forEach((line, lineIdx) => {
         if (line.trim() === PAGE_BREAK_MARKER) return; 
 
@@ -852,18 +863,27 @@ export default function EscribaLibroApp() {
             imgContainer.appendChild(caption);
           }
           contentAreaDiv.appendChild(imgContainer);
-          firstParagraphAfterChapter = false;
+          firstParagraphOfPage = false;
+          isAfterChapterHeading = false;
         } else {
           const p = document.createElement('p');
           if (line.match(/!\[(.*?)\]\((.*?)\)/)) {
              const [, altText] = line.match(/!\[(.*?)\]\((.*?)\)/)!;
              p.innerHTML = `<span style="font-style: italic; color: #888; text-align: center; display: block;">[Imagen: ${altText || 'Referencia de imagen externa'}]</span>`;
-             firstParagraphAfterChapter = false;
+             firstParagraphOfPage = false;
+             isAfterChapterHeading = false;
           } else {
             p.innerHTML = line.trim() === '' ? '&nbsp;' : line; 
             if (line.trim() !== '') {
-                 p.style.textIndent = firstParagraphAfterChapter ? '0' : '1.5em';
-                 firstParagraphAfterChapter = false; 
+                 p.style.textIndent = (firstParagraphOfPage || isAfterChapterHeading) ? '0' : '1.5em';
+                 if (firstParagraphOfPage || isAfterChapterHeading) {
+                    const firstLetter = p.innerHTML.charAt(0);
+                    if (firstLetter && firstLetter.match(/[a-zA-Z]/)) { // Apply only if first char is a letter
+                        p.innerHTML = `<span style="font-size: 2.8em; line-height: 1; float: left; margin-right: 0.07em; margin-top: 0.05em; font-weight: bold; color: hsl(var(--primary)); text-indent: 0;">${firstLetter}</span>${p.innerHTML.substring(1)}`;
+                    }
+                 }
+                 firstParagraphOfPage = false; 
+                 isAfterChapterHeading = false;
             }
           }
           p.style.margin = `${formattingOptions.fontSize * 0.4}px 0`; 
@@ -877,7 +897,8 @@ export default function EscribaLibroApp() {
             p.style.textAlign = 'left'; 
             p.style.textIndent = '0';
             p.textContent = line.substring(3).trim();
-            firstParagraphAfterChapter = true; 
+            isAfterChapterHeading = true; 
+            firstParagraphOfPage = false;
           }
           contentAreaDiv.appendChild(p);
         }
@@ -984,6 +1005,8 @@ export default function EscribaLibroApp() {
         
         let contentStartPageNumberInPdfActual = 1; 
         if (renderedCanvases.find(rc => rc.type === 'cover')) contentStartPageNumberInPdfActual++;
+        if (formattingOptions.tocPosition === 'start' && renderedCanvases.find(rc => rc.type === 'toc')) contentStartPageNumberInPdfActual++;
+
         const tocEntriesForPdf = contentPagesForPdfGeneration
             .filter(p => p.isStartOfChapter && p.chapterTitle)
             .map(p => ({
@@ -1092,9 +1115,22 @@ export default function EscribaLibroApp() {
           .content-image { max-width: 90%; height: auto; display: block; margin: 2em auto; border-radius: 5px; box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
           
           .html-paragraph { margin-bottom: ${formattingOptions.fontSize * 0.7}px; text-align: justify; text-indent: 1.5em; }
-          .html-paragraph:first-of-type { text-indent: 0; } 
-          h2.chapter-title-html + .html-paragraph { text-indent: 0; } 
+          .html-paragraph:first-of-type, .chapter-title-html + .html-paragraph { text-indent: 0; } 
           
+          .html-paragraph.first-letter-capital::first-letter,
+          .chapter-title-html + .html-paragraph.first-letter-capital::first-letter {
+            font-size: 2.8em;
+            font-weight: bold;
+            line-height: 1;
+            float: left;
+            margin-right: 0.07em;
+            margin-top: 0.05em;
+            color: hsl(var(--primary));
+            text-indent: 0;
+          }
+          .html-paragraph.first-letter-capital:empty::first-letter { all: unset; }
+
+
           .toc { border: 1px solid #e0e0e0; padding: 20px 30px; margin-bottom: 35px; background-color: #f9f9f9; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
           .toc h2 { text-align: center; margin-top: 0; font-size: ${formattingOptions.fontSize * 1.6}px; margin-bottom: 20px; }
           .toc ul { list-style-type: none; padding-left: 0; }
@@ -1153,24 +1189,36 @@ export default function EscribaLibroApp() {
       htmlString += '<div class="book-container page-break-before">\n';
     }
 
+    let firstContentParagraph = true;
     const contentParagraphs = (currentBook.content || '') 
       .split('\n')
       .map(line => {
         if (line.trim() === PAGE_BREAK_MARKER) {
+          firstContentParagraph = true; 
           return `<div class="page-break-html"></div>`;
         }
         if (line.startsWith('## ')) {
+          firstContentParagraph = true; 
           return `<h2 class="chapter-title-html page-break-before">${line.substring(3).trim()}</h2>`;
         }
         const imageMatch = line.match(/!\[(.*?)\]\((data:image\/.*?)\)/);
         if (imageMatch) {
           const [, altText, imgSrc] = imageMatch;
+          firstContentParagraph = false;
           return `<img src="${imgSrc}" alt="${altText || 'Imagen insertada'}" class="content-image" data-ai-hint="illustration drawing" />`;
         } else if (line.match(/!\[(.*?)\]\((.*?)\)/)) {
             const [, altText] = line.match(/!\[(.*?)\]\((.*?)\)/)!;
+            firstContentParagraph = false;
              return `<p style="font-style: italic; color: #888; text-align: center;">[Imagen: ${altText || 'Referencia de imagen externa'}]</p>`;
         }
-        return line.trim() === '' ? '<p class="html-paragraph">&nbsp;</p>' : `<p class="html-paragraph">${line}</p>`;
+        
+        let pClass = "html-paragraph";
+        if (firstContentParagraph && line.trim() !== '') {
+            pClass += " first-letter-capital";
+            firstContentParagraph = false;
+        }
+
+        return line.trim() === '' ? `<p class="${pClass}">&nbsp;</p>` : `<p class="${pClass}">${line}</p>`;
       })
       .join('\n');
 
@@ -1573,7 +1621,7 @@ export default function EscribaLibroApp() {
           <div className="w-full lg:w-1/2 lg:sticky lg:top-8"> 
             <Card className="shadow-lg h-full flex flex-col">
               <CardHeader>
-                <CardTitle className="flex items-center text-xl md:text-2xl"><Settings className="mr-2 h-5 w-5 text-primary" />Vista Previa en Vivo</CardTitle>
+                <CardTitle className="flex items-center text-xl md:text-2xl"><FileSearch className="mr-2 h-5 w-5 text-primary" />Vista Previa en Vivo</CardTitle>
                 <CardDescription>Observa cómo tu libro toma forma. La paginación es aproximada.</CardDescription>
               </CardHeader>
               <CardContent
@@ -1712,4 +1760,3 @@ export default function EscribaLibroApp() {
     </div>
   );
 }
-
