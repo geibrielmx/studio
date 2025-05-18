@@ -1,7 +1,13 @@
 
-export interface ChapterEntry {
+export interface ChapterEntry { // For Table of Contents display
   title: string;
   estimatedPage: number;
+}
+
+export interface Chapter {
+  id: string;
+  title: string;
+  content: string;
 }
 
 export type AuthorImagePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
@@ -15,14 +21,14 @@ export interface Book {
   subtitle?: string;
   author: string;
   editorial?: string;
-  content: string; // Markdown content, images are placeholders like [Imagen: alt text]
-  coverImage?: string | null; // Placeholder/Marker for session, actual image handled by user
-  authorImage?: string | null; // Placeholder/Marker for session
+  chapters: Chapter[]; // Changed from content: string
+  coverImage?: string | null; 
+  authorImage?: string | null; 
   authorImagePosition?: AuthorImagePosition;
   titlePosition?: CoverTextPosition;
   subtitlePosition?: CoverTextPosition;
   editorialPosition?: CoverTextPosition;
-  tableOfContents?: ChapterEntry[];
+  // tableOfContents?: ChapterEntry[]; // Will be derived from chapters and pagination
   lastModified: number; 
 }
 
@@ -35,7 +41,5 @@ export interface FormattingOptions {
   previewPadding: number;
   lineHeight: number;
   pageNumberAlignment: 'left' | 'center' | 'right';
-  tocPosition: 'start' | 'end';
-  // firstLetterUppercase: boolean; // For later implementation if clarified
-  // chapterTitleLineColor?: string; // For later implementation if clarified
+  tocPosition: 'start' | 'end' | 'none'; // Added 'none' option perhaps
 }

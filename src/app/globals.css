@@ -139,19 +139,6 @@ body {
   text-indent: 0;
 }
 
-/* Estilo para Letra Capital (Visual) */
-.book-paragraph.first-letter-capital::first-letter,
-.chapter-heading + .book-paragraph.first-letter-capital::first-letter {
-  font-size: 2.8em; /* Tamaño más grande para la primera letra */
-  font-weight: bold;
-  line-height: 1;
-  float: left;
-  margin-right: 0.07em; /* Espacio alrededor de la letra capital */
-  margin-top: 0.05em;
-  color: hsl(var(--primary)); /* Color primario para la letra capital */
-  text-indent: 0; /* Anular la indentación normal del párrafo para esta letra */
-}
-
 /* Anular letra capital si el párrafo está vacío o es solo un espacio */
 .book-paragraph.first-letter-capital:empty::first-letter,
 .book-paragraph.first-letter-capital:has(br:only-child)::first-letter {
