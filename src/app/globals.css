@@ -8,33 +8,33 @@ body {
 
 @layer base {
   :root {
-    --background: 40 43% 92%; /* Cream - #F0EAD6 */
-    --foreground: 30 8% 26%; /* Dark Taupe - #4A443D */
+    --background: 40 50% 96%; /* Lighter Cream - #FBF9F2 */
+    --foreground: 30 10% 22%; /* Darker Taupe for better contrast - #423D38 */
 
-    --card: 60 56% 93%; /* Beige - #F5F5DC */
-    --card-foreground: 30 8% 26%; /* Dark Taupe - #4A443D */
+    --card: 40 40% 94%; /* Slightly lighter beige for cards - #F3F1E9 */
+    --card-foreground: 30 10% 22%; /* Darker Taupe */
 
-    --popover: 60 56% 93%; /* Beige - #F5F5DC */
-    --popover-foreground: 30 8% 26%; /* Dark Taupe - #4A443D */
+    --popover: 40 40% 94%; /* Slightly lighter beige */
+    --popover-foreground: 30 10% 22%; /* Darker Taupe */
 
-    --primary: 77 19% 51%; /* Muted Olive - #8F9B6A */
+    --primary: 210 70% 55%; /* A calm, friendly blue - #4D88D4 */
     --primary-foreground: 0 0% 100%; /* White */
 
-    --secondary: 77 22% 72%; /* Lighter Muted Olive - #A8B886 */
-    --secondary-foreground: 30 8% 26%; /* Dark Taupe - #4A443D */
+    --secondary: 210 50% 80%; /* Lighter blue - #A6C3E8 */
+    --secondary-foreground: 30 10% 22%; /* Dark Taupe */
 
-    --muted: 40 25% 90%; /* Lighter Cream - #E0DACE */
-    --muted-foreground: 27 7% 45%; /* Medium Taupe - #7A706A */
+    --muted: 40 30% 92%; /* Lighter Cream for muted elements - #EAE7E0 */
+    --muted-foreground: 30 8% 40%; /* Medium Taupe - #736B64 */
 
-    --accent: 77 30% 65%; /* Brighter Olive - #9EB07A */
-    --accent-foreground: 30 8% 26%; /* Dark Taupe */
+    --accent: 25 80% 60%; /* A warm, inviting orange - #F59E4C */
+    --accent-foreground: 0 0% 100%; /* White, for high contrast on accent */
 
-    --destructive: 0 84.2% 60.2%; /* Default Red */
+    --destructive: 0 75% 55%; /* A clearer red - #D94C4C */
     --destructive-foreground: 0 0% 98%; /* Default Light */
 
-    --border: 40 25% 81%; /* Slightly darker cream - #D3C9B8 */
-    --input: 40 25% 81%; /* Slightly darker cream - #D3C9B8 */
-    --ring: 77 19% 51%; /* Muted Olive (same as primary) */
+    --border: 40 25% 85%; /* Slightly darker cream for borders - #DBD5C9 */
+    --input: 40 25% 88%; /* Slightly darker cream for input backgrounds - #E2DCCC */
+    --ring: 210 70% 55%; /* Calm Blue (same as primary) for focus rings */
     
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -44,51 +44,60 @@ body {
     --radius: 0.5rem;
 
     /* Sidebar specific colors - adjusted to theme */
-    --sidebar-background: 60 56% 93%; /* Beige - card color */
-    --sidebar-foreground: 30 8% 26%; /* Dark Taupe - card-foreground color */
-    --sidebar-primary: 77 19% 51%; /* Muted Olive - primary color */
-    --sidebar-primary-foreground: 0 0% 100%; /* White - primary-foreground */
-    --sidebar-accent: 77 30% 65%; /* Brighter Olive - accent color */
-    --sidebar-accent-foreground: 30 8% 26%; /* Dark Taupe - accent-foreground */
-    --sidebar-border: 40 25% 81%; /* Border color */
-    --sidebar-ring: 77 19% 51%; /* Ring color */
+    --sidebar-background: 210 30% 95%; /* Light Blueish Gray - #ECF1F7 */
+    --sidebar-foreground: 210 15% 30%; /* Dark Blueish Gray - #414A54 */
+    --sidebar-primary: 210 70% 55%; /* Calm Blue */
+    --sidebar-primary-foreground: 0 0% 100%; /* White */
+    --sidebar-accent: 25 80% 60%; /* Warm Orange */
+    --sidebar-accent-foreground: 0 0% 100%; /* White */
+    --sidebar-border: 210 25% 85%; /* Lighter Blueish Gray Border */
+    --sidebar-ring: 210 70% 55%; /* Calm Blue */
   }
 
   .dark {
     /* Keeping dark mode defaults, can be themed later if needed */
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 220 15% 10%; /* Darker Blue background */
+    --foreground: 220 10% 90%; /* Light Gray foreground */
+
+    --card: 220 15% 15%; /* Slightly lighter dark blue for cards */
+    --card-foreground: 220 10% 90%;
+
+    --popover: 220 15% 15%;
+    --popover-foreground: 220 10% 90%;
+
+    --primary: 210 70% 60%; /* Brighter Blue for dark mode */
+    --primary-foreground: 220 15% 10%; /* Dark background for primary text */
+
+    --secondary: 210 50% 40%; /* Darker secondary blue */
+    --secondary-foreground: 220 10% 90%;
+
+    --muted: 220 15% 20%; /* Muted dark blue */
+    --muted-foreground: 220 10% 65%;
+
+    --accent: 25 70% 65%; /* Orange accent, slightly desaturated for dark mode */
+    --accent-foreground: 220 15% 10%;
+
+    --destructive: 0 65% 60%; /* Destructive red */
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+
+    --border: 220 15% 25%; /* Border for dark mode */
+    --input: 220 15% 25%; /* Input background for dark mode */
+    --ring: 210 70% 60%; /* Ring color for dark mode */
+    
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 220 15% 12%;
+    --sidebar-foreground: 220 10% 85%;
+    --sidebar-primary: 210 70% 60%;
+    --sidebar-primary-foreground: 220 15% 10%;
+    --sidebar-accent: 25 70% 65%;
+    --sidebar-accent-foreground: 220 15% 10%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 210 70% 60%;
   }
 }
 
@@ -116,4 +125,38 @@ body {
 }
 .prose img {
   @apply my-4 rounded shadow-md max-w-full h-auto mx-auto block;
+}
+
+/* Style for first letter of paragraphs in preview */
+.book-paragraph::first-letter {
+  font-size: 1.75em; /* Approx 28px if base is 16px */
+  font-weight: bold;
+  float: left;
+  margin-right: 0.07em;
+  line-height: 0.8; /* Adjust for better alignment with the first line */
+  padding-top: 0.1em; /* Fine-tune vertical alignment */
+  color: hsl(var(--primary)); /* Use primary color for emphasis */
+}
+
+.book-paragraph {
+  text-align: justify;
+  text-indent: 1.5em; /* Indent first line of paragraph */
+}
+.book-paragraph:first-of-type {
+  text-indent: 0; /* No indent for the very first paragraph of a section/page */
+}
+.book-paragraph:first-of-type::first-letter { /* Style for first letter of first paragraph */
+  font-size: 2.5em; /* Larger for the very first letter */
+  line-height: 0.7;
+  padding-top: 0.05em;
+}
+
+/* Ensure first paragraph after a chapter heading is not indented and has larger first letter */
+.chapter-heading + .book-paragraph {
+  text-indent: 0;
+}
+.chapter-heading + .book-paragraph::first-letter {
+  font-size: 2.5em;
+  line-height: 0.7;
+  padding-top: 0.05em;
 }
