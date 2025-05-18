@@ -21,14 +21,15 @@ export interface Book {
   subtitle?: string;
   author: string;
   editorial?: string;
-  chapters: Chapter[]; // Changed from content: string
+  coverFreeText?: string; // Nuevo campo para texto libre en portada
+  chapters: Chapter[]; 
   coverImage?: string | null; 
   authorImage?: string | null; 
   authorImagePosition?: AuthorImagePosition;
   titlePosition?: CoverTextPosition;
   subtitlePosition?: CoverTextPosition;
   editorialPosition?: CoverTextPosition;
-  // tableOfContents?: ChapterEntry[]; // Will be derived from chapters and pagination
+  coverFreeTextPosition?: CoverTextPosition; // Posición para el texto libre
   lastModified: number; 
 }
 
@@ -41,5 +42,6 @@ export interface FormattingOptions {
   previewPadding: number;
   lineHeight: number;
   pageNumberAlignment: 'left' | 'center' | 'right';
-  tocPosition: 'start' | 'end' | 'none'; // Added 'none' option perhaps
+  tocPosition: 'start' | 'end' | 'none'; 
 }
+
