@@ -122,6 +122,9 @@ body {
 .prose em {
   @apply italic;
 }
+.prose strong {
+  @apply font-bold;
+}
 .prose img {
   @apply my-4 rounded shadow-md max-w-full h-auto mx-auto block;
 }
@@ -130,13 +133,32 @@ body {
   text-align: justify;
   text-indent: 1.5em; /* Indent first line of paragraph */
 }
-.book-paragraph:first-of-type {
-  text-indent: 0; /* No indent for the very first paragraph of a section/page */
+
+.book-paragraph.first-letter-capital::first-letter {
+  font-size: 2.5em; /* Ajusta según sea necesario */
+  font-weight: bold;
+  float: left;
+  line-height: 0.8em; /* Ajusta para alineación vertical */
+  margin-right: 0.07em;
+  padding-top: 0.07em;
+  color: hsl(var(--primary)); /* Usa el color primario del tema */
+}
+.book-paragraph:first-of-type, /* No indent for the very first paragraph of a section/page */
+.chapter-heading + .book-paragraph, /* No indent for paragraph after a chapter heading */
+.chapter-heading + .book-paragraph.first-letter-capital {
+  text-indent: 0;
 }
 
-/* Ensure first paragraph after a chapter heading is not indented */
-.chapter-heading + .book-paragraph {
-  text-indent: 0;
+/* Ensure chapter heading itself doesn't get first letter capital styling if it's a p tag */
+.chapter-heading.book-paragraph.first-letter-capital::first-letter {
+  all: unset; /* Resets all properties */
+  font-size: inherit; /* Inherit from chapter-heading styles */
+  font-weight: inherit;
+  float: none;
+  line-height: inherit;
+  margin-right: 0;
+  padding-top: 0;
+  color: inherit;
 }
 
 /* Anular letra capital si el párrafo está vacío o es solo un espacio */

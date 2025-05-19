@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import NextImage from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { UploadCloud, BookOpen, Type, User, Settings, Palette, FileText, Image as ImageIcon, Paintbrush, Save, Loader2, ListOrdered, FolderOpen, FileDown, FileCode, FilePlus, Trash2, ChevronLeft, ChevronRight, UserSquare2, FileSearch, Building, AlignLeft, AlignCenter, AlignRight, BookIcon, Feather, Edit3, PlusCircle } from 'lucide-react';
+import { UploadCloud, BookOpen, Type, User, Settings, Palette, FileText, Image as ImageIcon, Paintbrush, Save, Loader2, ListOrdered, FolderOpen, FileDown, FileCode, FilePlus, Trash2, ChevronLeft, ChevronRight, UserSquare2, FileSearch, Building, AlignLeft, AlignCenter, AlignRight, BookIcon, Feather, Edit3, PlusCircle, HelpCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 const COPYRIGHT_NOTICE = `© ${new Date().getFullYear()} GaboGmx. Todos los derechos reservados.`;
 
 const PAGE_CONTENT_TARGET_HEIGHT_PX = 680;
@@ -88,6 +88,7 @@ function createPageContentElements(
 ): { elements: JSX.Element[], chapterTitle?: string, isStartOfChapter?: boolean } {
   let isStartOfChapter = false;
   let chapterTitle: string | undefined = undefined;
+  let firstParagraphAfterHeading = false;
 
   const elements = lines.map((paragraph, index) => {
     if (paragraph.trim() === PAGE_BREAK_MARKER) {
@@ -99,11 +100,13 @@ function createPageContentElements(
         isStartOfChapter = true;
         chapterTitle = paragraph.substring(3).trim();
         isChapterHeadingLine = true;
+        firstParagraphAfterHeading = true; 
       }
     }
     const imageMatch = paragraph.match(/!\[(.*?)\]\((data:image\/.*?)\)/);
     if (imageMatch) {
       const [, altText, imgSrc] = imageMatch;
+      firstParagraphAfterHeading = false;
       return (
         <div key={`${pageKeyPrefix}-line-${index}`} className="my-3 md:my-4 text-center">
           <NextImage
@@ -122,10 +125,20 @@ function createPageContentElements(
       );
     } else if (paragraph.match(/!\[(.*?)\]\((.*?)\)/)) {
         const [, altText] = paragraph.match(/!\[(.*?)\]\((.*?)\)/)!;
+        firstParagraphAfterHeading = false;
         return <p key={`${pageKeyPrefix}-line-${index}`} className="my-1.5 md:my-2 italic text-muted-foreground text-center">[Imagen: {altText || 'Referencia de imagen externa'}]</p>;
     }
     
-    const pClassName = `my-1.5 md:my-2 book-paragraph ${isChapterHeadingLine ? 'chapter-heading font-bold text-xl md:text-2xl !text-left !indent-0 !pl-0 !pt-4 !pb-2 border-b-2 border-primary mb-4' : ''}`;
+    let pClassName = `my-1.5 md:my-2 book-paragraph ${isChapterHeadingLine ? 'chapter-heading font-bold text-xl md:text-2xl !text-left !indent-0 !pl-0 !pt-4 !pb-2 border-b-2 border-primary mb-4' : ''}`;
+    
+    if (!isChapterHeadingLine && firstParagraphAfterHeading && paragraph.trim() !== '') {
+      pClassName += ' first-letter-capital';
+      firstParagraphAfterHeading = false; 
+    } else if (!isChapterHeadingLine && paragraph.trim() !== '') {
+       pClassName += ' normal-paragraph';
+    }
+
+
     const pContent = isChapterHeadingLine ? paragraph.substring(3).trim() : (paragraph.trim() === '' ? <>&nbsp;</> : paragraph);
 
     return <p key={`${pageKeyPrefix}-line-${index}`} className={pClassName}>{pContent}</p>;
@@ -281,6 +294,8 @@ export default function EscribaLibroApp() {
   const [isPageTransitioning, setIsPageTransitioning] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null); 
+  const [showMarkdownHelp, setShowMarkdownHelp] = useState(false);
+
 
   const loadFormattingFromLocalStorage = useCallback(() => {
     try {
@@ -346,7 +361,7 @@ export default function EscribaLibroApp() {
       <div className="flex justify-center items-center min-h-screen p-4 md:p-8 bg-background">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl md:text-3xl">Cargando EscribaLibro...</CardTitle>
+            <CardTitle className="text-2xl md:text-3xl">Cargando Escribe Libro Pro...</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -366,6 +381,7 @@ export default function EscribaLibroApp() {
     if(currentBook.subtitle) txtContent += `Subtítulo: ${currentBook.subtitle}\n`;
     txtContent += `Autor: ${currentBook.author || 'Desconocido'}\n`;
     if(currentBook.editorial) txtContent += `Editorial: ${currentBook.editorial}\n`;
+    if(currentBook.coverFreeText) txtContent += `Texto Adicional Portada: ${currentBook.coverFreeText}\n`;
     txtContent += "\n";
     
     const tocForTxt = generateTableOfContents(paginatedPreview, currentBook.chapters || []);
@@ -429,7 +445,9 @@ export default function EscribaLibroApp() {
               if (authorMatch) { newBook.author = authorMatch[1].trim(); continue; }
               const editorialMatch = line.match(/^Editorial:\s*(.*)/);
               if (editorialMatch) { newBook.editorial = editorialMatch[1].trim(); continue; }
-              // Note: coverFreeText is not typically part of TXT metadata.
+              const coverFreeTextMatch = line.match(/^Texto Adicional Portada:\s*(.*)/);
+              if (coverFreeTextMatch) { newBook.coverFreeText = coverFreeTextMatch[1].trim(); continue; }
+              
               if (line.trim() === "## Contenido del Libro ##") {
                 inHeaderSection = false;
                 parsingContent = true;
@@ -468,8 +486,8 @@ export default function EscribaLibroApp() {
             if (contentStartIndex !== -1) {
                 mainContent = text.substring(contentStartIndex + contentHeaderMarker.length);
             } else {
-                const metadataLines = text.split('\n').filter(l => 
-                    l.startsWith("Título:") || l.startsWith("Subtítulo:") || l.startsWith("Autor:") || l.startsWith("Editorial:") || l.startsWith("Índice de Capítulos") || (l.startsWith("- ") && l.includes("(pág. ~")) || l.trim() === ""
+                 const metadataLines = text.split('\n').filter(l => 
+                    l.startsWith("Título:") || l.startsWith("Subtítulo:") || l.startsWith("Autor:") || l.startsWith("Editorial:") || l.startsWith("Texto Adicional Portada:") || l.startsWith("Índice de Capítulos") || (l.startsWith("- ") && l.includes("(pág. ~")) || l.trim() === ""
                 );
                 mainContent = text.split('\n').slice(metadataLines.length).join('\n');
             }
@@ -946,7 +964,7 @@ export default function EscribaLibroApp() {
       const contentAreaDiv = document.createElement('div');
       contentAreaDiv.style.flexGrow = '1'; 
       contentAreaDiv.style.overflowY = 'hidden'; 
-      let isAfterChapterHeading = false; 
+      let firstParagraphAfterHeading = false; 
 
       typedPageData.rawContentLines.forEach((line, lineIdx) => {
         if (line.trim() === PAGE_BREAK_MARKER) return; 
@@ -973,18 +991,23 @@ export default function EscribaLibroApp() {
             imgContainer.appendChild(caption);
           }
           contentAreaDiv.appendChild(imgContainer);
-          isAfterChapterHeading = false; 
+          firstParagraphAfterHeading = false; 
         } else {
           const p = document.createElement('p');
           if (line.match(/!\[(.*?)\]\((.*?)\)/)) {
              const [, altText] = line.match(/!\[(.*?)\]\((.*?)\)/)!;
              p.innerHTML = `<span style="font-style: italic; color: #888; text-align: center; display: block;">[Imagen: ${altText || 'Referencia de imagen externa'}]</span>`;
-             isAfterChapterHeading = false;
+             firstParagraphAfterHeading = false;
           } else {
             p.innerHTML = line.trim() === '' ? '&nbsp;' : line; 
             if (line.trim() !== '') {
-                 p.style.textIndent = isAfterChapterHeading ? '0' : '1.5em'; 
-                 isAfterChapterHeading = false; 
+                 if(firstParagraphAfterHeading){
+                     p.style.textIndent = '0';
+                     p.classList.add('first-letter-capital-pdf');
+                     firstParagraphAfterHeading = false; 
+                 } else {
+                    p.style.textIndent = '1.5em';
+                 }
             }
           }
           p.style.margin = `${formattingOptions.fontSize * 0.4}px 0`; 
@@ -998,7 +1021,7 @@ export default function EscribaLibroApp() {
             p.style.textAlign = 'left'; 
             p.style.textIndent = '0'; 
             p.textContent = line.substring(3).trim();
-            isAfterChapterHeading = true; 
+            firstParagraphAfterHeading = true; 
           }
           contentAreaDiv.appendChild(p);
         }
@@ -1045,6 +1068,22 @@ export default function EscribaLibroApp() {
     tempContainer.style.zIndex = '-1'; 
     tempContainer.style.opacity = '0'; 
     document.body.appendChild(tempContainer);
+    
+    // Add style for PDF first letter capital
+    const pdfStyleElement = document.createElement('style');
+    pdfStyleElement.innerHTML = `
+      .first-letter-capital-pdf::first-letter {
+        font-size: ${formattingOptions.fontSize * 2.5 * 1.2}px; /* 2.5x base font size, then scaled by 1.2 for PDF */
+        font-weight: bold;
+        float: left;
+        line-height: ${formattingOptions.fontSize * 1.2 * 0.8}px; /* Adjusted line height for PDF scale */
+        margin-right: ${formattingOptions.fontSize * 0.2 * 1.2}px;
+        padding-top: ${formattingOptions.fontSize * 0.2 * 1.2}px;
+        color: hsl(var(--primary)); /* Ensure primary color is applied */
+      }
+    `;
+    tempContainer.appendChild(pdfStyleElement);
+
 
     const renderedCanvases: { type: 'cover' | 'toc' | 'content', canvas: HTMLCanvasElement, originalPageNumber: number }[] = [];
     let pdfPageCounter = 0; 
@@ -1052,8 +1091,7 @@ export default function EscribaLibroApp() {
     if (currentBook.coverImage || currentBook.title) { 
         pdfPageCounter++;
         const coverPageDiv = createPdfPageHtml({ type: 'cover' }, false, true);
-        tempContainer.innerHTML = ''; 
-        tempContainer.appendChild(coverPageDiv);
+        tempContainer.appendChild(coverPageDiv); // Append to tempContainer
         try {
             const coverCanvas = await html2canvas(coverPageDiv, { scale: 2, useCORS: true, backgroundColor: null, windowWidth: coverPageDiv.scrollWidth, windowHeight: coverPageDiv.scrollHeight });
             renderedCanvases.push({ type: 'cover', canvas: coverCanvas, originalPageNumber: pdfPageCounter });
@@ -1061,6 +1099,7 @@ export default function EscribaLibroApp() {
             console.error("Error rendering cover for PDF:", e);
             toast({title: "Error Portada PDF", description: "Hubo un problema al renderizar la portada.", variant: "destructive"});
         }
+        tempContainer.removeChild(coverPageDiv); // Clean up after rendering
     }
     
     const contentPagesForPdfGeneration = generatePagePreviews(currentBook, formattingOptions); 
@@ -1079,10 +1118,10 @@ export default function EscribaLibroApp() {
             }));
 
         const tocPageDiv = createPdfPageHtml({ type: 'toc', title: 'Índice', entries: tocEntriesForPdf, pageNumberForFooter: tocPdfPageNumberForFooter }, true);
-        tempContainer.innerHTML = '';
         tempContainer.appendChild(tocPageDiv);
         const tocCanvas = await html2canvas(tocPageDiv, { scale: 2, useCORS: true, backgroundColor: null, windowWidth: tocPageDiv.scrollWidth, windowHeight: tocPageDiv.scrollHeight });
         renderedCanvases.push({ type: 'toc', canvas: tocCanvas, originalPageNumber: tocPdfPageNumberForFooter });
+        tempContainer.removeChild(tocPageDiv);
     }
 
     for (const pageData of contentPagesForPdfGeneration) {
@@ -1091,10 +1130,10 @@ export default function EscribaLibroApp() {
       const pdfPageData = { ...pageData, footerCenter: `Página ${actualPdfPageForThisContent}` }; 
       
       const pageDiv = createPdfPageHtml(pdfPageData);
-      tempContainer.innerHTML = '';
       tempContainer.appendChild(pageDiv);
       const canvas = await html2canvas(pageDiv, { scale: 2, useCORS: true, backgroundColor: null, windowWidth: pageDiv.scrollWidth, windowHeight: pageDiv.scrollHeight });
       renderedCanvases.push({ type: 'content', canvas, originalPageNumber: actualPdfPageForThisContent });
+      tempContainer.removeChild(pageDiv);
     }
     
     if (formattingOptions.tocPosition === 'end' && currentBook.chapters && currentBook.chapters.length > 0) {
@@ -1111,10 +1150,10 @@ export default function EscribaLibroApp() {
             }));
 
         const tocPageDiv = createPdfPageHtml({ type: 'toc', title: 'Índice', entries: tocEntriesForPdf, pageNumberForFooter: tocPdfPageNumberForFooter }, true);
-        tempContainer.innerHTML = '';
         tempContainer.appendChild(tocPageDiv);
         const tocCanvas = await html2canvas(tocPageDiv, { scale: 2, useCORS: true, backgroundColor: null, windowWidth: tocPageDiv.scrollWidth, windowHeight: tocPageDiv.scrollHeight });
         renderedCanvases.push({ type: 'toc', canvas: tocCanvas, originalPageNumber: tocPdfPageNumberForFooter });
+        tempContainer.removeChild(tocPageDiv);
     }
 
     renderedCanvases.sort((a,b) => a.originalPageNumber - b.originalPageNumber);
@@ -1214,6 +1253,15 @@ export default function EscribaLibroApp() {
           
           .html-paragraph { margin-bottom: ${formattingOptions.fontSize * 0.7}px; text-align: justify; text-indent: 1.5em; }
           .html-paragraph:first-of-type, .chapter-title-html + .html-paragraph { text-indent: 0; } 
+          .html-paragraph.first-letter-capital::first-letter {
+            font-size: ${formattingOptions.fontSize * 2.5}px;
+            font-weight: bold;
+            float: left;
+            line-height: ${formattingOptions.fontSize * 0.8}px;
+            margin-right: ${formattingOptions.fontSize * 0.2}px;
+            padding-top: ${formattingOptions.fontSize * 0.2}px;
+            color: hsl(var(--primary)); /* Ensure primary color is applied */
+          }
           
           .toc { border: 1px solid #e0e0e0; padding: 20px 30px; margin-bottom: 35px; background-color: #f9f9f9; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
           .toc h2 { text-align: center; margin-top: 0; font-size: ${formattingOptions.fontSize * 1.6}px; margin-bottom: 20px; }
@@ -1280,6 +1328,7 @@ export default function EscribaLibroApp() {
     const fullContentForHtml = (currentBook.chapters || [])
       .map(chapter => {
         let chapterHtml = `<h2 class="chapter-title-html page-break-before">${chapter.title}</h2>\n`;
+        let firstParagraphInChapter = true;
         chapterHtml += chapter.content.split('\n').map(line => {
           if (line.trim() === PAGE_BREAK_MARKER) {
             return `<div class="page-break-html"></div>`;
@@ -1287,15 +1336,25 @@ export default function EscribaLibroApp() {
           const imageMatch = line.match(/!\[(.*?)\]\((data:image\/.*?)\)/);
           if (imageMatch) {
             const [, altText, imgSrc] = imageMatch;
+            firstParagraphInChapter = false; 
             return `<img src="${imgSrc}" alt="${altText || 'Imagen insertada'}" class="content-image" data-ai-hint="illustration drawing" />`;
           } else if (line.match(/!\[(.*?)\]\((.*?)\)/)) {
               const [, altText] = line.match(/!\[(.*?)\]\((.*?)\)/)!;
+              firstParagraphInChapter = false; 
               return `<p style="font-style: italic; color: #888; text-align: center;">[Imagen: ${altText || 'Referencia de imagen externa'}]</p>`;
           }
-          // Basic Markdown to HTML conversion (simple cases)
-          let processedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold
-          processedLine = processedLine.replace(/\*(.*?)\*/g, '<em>$1</em>');     // Italic
-          return processedLine.trim() === '' ? `<p class="html-paragraph">&nbsp;</p>` : `<p class="html-paragraph">${processedLine}</p>`;
+          
+          let processedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); 
+          processedLine = processedLine.replace(/(\s|^)\*(.*?)\*(\s|$)/g, '$1<em>$2</em>$3');     
+          processedLine = processedLine.replace(/(\s|^)_(.*?)_(\s|$)/g, '$1<em>$2</em>$3'); 
+
+          let pClass = "html-paragraph";
+          if (firstParagraphInChapter && processedLine.trim() !== '') {
+            pClass += " first-letter-capital";
+            firstParagraphInChapter = false;
+          }
+
+          return processedLine.trim() === '' ? `<p class="html-paragraph">&nbsp;</p>` : `<p class="${pClass}">${processedLine}</p>`;
         }).join('\n');
         return chapterHtml;
       })
@@ -1360,7 +1419,7 @@ export default function EscribaLibroApp() {
         <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
             <BookIcon className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl md:text-4xl font-bold text-primary">EscribaLibro</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-primary">Escribe Libro Pro</h1>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={handleNewBook} variant="outline" size="sm">
@@ -1513,14 +1572,17 @@ export default function EscribaLibroApp() {
                         <p>No hay capítulos. ¡Añade uno para empezar!</p>
                     </div>
                   )}
-                   <p className="text-xs text-muted-foreground mt-2">Consejo: Escribe `\newpage` en una línea dentro del contenido del capítulo para forzar un salto de página.</p>
-                   <p className="text-xs text-muted-foreground mt-1">Para **negritas**, usa `**texto**`. Para *itálicas*, usa `*texto*`.</p>
                   <div className="mt-4">
                     <Label htmlFor="insertImageContent" className="cursor-pointer inline-flex items-center px-3 py-2 rounded-md border border-input bg-card hover:bg-accent hover:text-accent-foreground text-xs transition-colors duration-150">
                       <UploadCloud className="mr-2 h-4 w-4" /> Insertar Imagen en Capítulo
                     </Label>
                     <Input id="insertImageContent" type="file" accept="image/*" onChange={handleImageInsertToContent} className="hidden" />
                     <p className="text-xs text-muted-foreground mt-1">Las imágenes son para esta sesión y se exportan a PDF/HTML, no se guardan en TXT.</p>
+                  </div>
+                  <div className="mt-auto pt-4 border-t">
+                    <Button variant="outline" size="sm" onClick={() => setShowMarkdownHelp(true)}>
+                      <HelpCircle className="mr-2 h-4 w-4" /> Consejos de Formato (Markdown)
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1931,8 +1993,38 @@ export default function EscribaLibroApp() {
           </div>
         </div>
       </Tabs>
+
+      <Dialog open={showMarkdownHelp} onOpenChange={setShowMarkdownHelp}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Consejos de Formato (Markdown)</DialogTitle>
+            <DialogDescription>
+              Usa estos comandos básicos en el editor de capítulos para dar formato a tu texto.
+              La vista previa y las exportaciones HTML/PDF intentarán interpretarlos.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <ul className="space-y-2 text-sm list-disc list-inside pl-2">
+              <li><code>## Título del Capítulo</code>: Define un nuevo capítulo (automático al añadir capítulos).</li>
+              <li><code>**texto en negrita**</code>: Para mostrar texto en <strong>negrita</strong>.</li>
+              <li><code>*texto en itálica*</code> o <code>_texto en itálica_</code>: Para mostrar texto en <em>itálica</em>.</li>
+              <li><code>\newpage</code> (en una línea separada): Para forzar un salto de página manual.</li>
+              <li>Para insertar imágenes, usa el botón "Insertar Imagen en Capítulo". Se añadirá el código Markdown necesario.</li>
+              <li>La justificación completa del texto no es parte de Markdown estándar y se aplica globalmente en las exportaciones (PDF/HTML) según el estilo del libro.</li>
+            </ul>
+          </ScrollArea>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Cerrar
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <footer className="mt-12 pt-6 border-t border-border text-center text-xs text-muted-foreground">
-        <p>EscribaLibro {APP_VERSION}</p>
+        <p>Escribe Libro Pro {APP_VERSION}</p>
         <p>{COPYRIGHT_NOTICE}</p>
       </footer>
     </div>

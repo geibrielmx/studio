@@ -11,7 +11,7 @@ const fontSans = FontSans({
 })
 
 export const metadata: Metadata = {
-  title: 'EscribaLibro - Tu Compañero de Escritura de Libros',
+  title: 'Escribe Libro Pro - Tu Compañero de Escritura de Libros',
   description: 'Crea, edita y formatea tu libro con facilidad. Diseña portadas, inserta imágenes y exporta en múltiples formatos.',
 };
 
