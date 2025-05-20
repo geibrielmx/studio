@@ -21,7 +21,7 @@ export interface Book {
   subtitle?: string;
   author: string;
   editorial?: string;
-  coverFreeText?: string; // Nuevo campo para texto libre en portada
+  coverFreeText?: string; 
   chapters: Chapter[]; 
   coverImage?: string | null; 
   authorImage?: string | null; 
@@ -29,7 +29,7 @@ export interface Book {
   titlePosition?: CoverTextPosition;
   subtitlePosition?: CoverTextPosition;
   editorialPosition?: CoverTextPosition;
-  coverFreeTextPosition?: CoverTextPosition; // Posición para el texto libre
+  coverFreeTextPosition?: CoverTextPosition; 
   lastModified: number; 
 }
 
@@ -43,5 +43,7 @@ export interface FormattingOptions {
   lineHeight: number;
   pageNumberAlignment: 'left' | 'center' | 'right';
   tocPosition: 'start' | 'end' | 'none'; 
+  coverTitleFontSize?: number; // Added
+  coverSubtitleFontSize?: number; // Added
 }
 

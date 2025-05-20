@@ -30,7 +30,7 @@ const IMAGE_LINE_EQUIVALENT = 15;
 const PAGE_BREAK_MARKER = '\\newpage';
 
 const LOCALSTORAGE_FORMATTING_KEY = 'escribaLibro_formatting_v7';
-
+const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024; // 2MB limit for images
 
 interface PagePreviewData {
   pageNumber: number;
@@ -78,6 +78,8 @@ const initialFormattingOptions: FormattingOptions = {
   lineHeight: 1.6,
   pageNumberAlignment: 'center',
   tocPosition: 'start',
+  coverTitleFontSize: 48, // Default cover title font size
+  coverSubtitleFontSize: 28, // Default cover subtitle font size
 };
 
 
@@ -132,7 +134,7 @@ function createPageContentElements(
     let pClassName = `my-1.5 md:my-2 book-paragraph ${isChapterHeadingLine ? 'chapter-heading font-bold text-xl md:text-2xl !text-left !indent-0 !pl-0 !pt-4 !pb-2 border-b-2 border-primary mb-4' : ''}`;
     
     if (!isChapterHeadingLine && firstParagraphAfterHeading && paragraph.trim() !== '') {
-       pClassName += ' first-letter-capital first-paragraph-after-heading';
+       pClassName += ' first-paragraph-after-heading'; // No more first-letter-capital by default
        firstParagraphAfterHeading = false; 
     } else if (!isChapterHeadingLine && paragraph.trim() !== '') {
        pClassName += ' normal-paragraph';
@@ -336,9 +338,14 @@ export default function EscribaLibroApp() {
         localStorage.setItem(LOCALSTORAGE_FORMATTING_KEY, JSON.stringify(formattingOptions));
       } catch (error) {
         console.error("Error saving formatting to localStorage:", error);
+        toast({
+            title: 'Error al Guardar Formato',
+            description: 'No se pudieron guardar las opciones de formato. Puede que el almacenamiento esté lleno.',
+            variant: 'destructive',
+        });
       }
     }
-  }, [formattingOptions, mounted]);
+  }, [formattingOptions, mounted, toast]);
 
 
   useEffect(() => {
@@ -451,6 +458,9 @@ export default function EscribaLibroApp() {
                 inHeaderSection = false;
                 parsingContent = true;
                 continue;
+              } else if (line.startsWith('## ')) { // Handle case where content starts immediately with a chapter
+                inHeaderSection = false;
+                parsingContent = true;
               }
             }
             
@@ -478,24 +488,30 @@ export default function EscribaLibroApp() {
               });
           }
           
-          if (newBook.chapters.length === 0) { 
-            const contentHeaderMarker = "## Contenido del Libro ##\n";
-            let contentStartIndex = text.indexOf(contentHeaderMarker);
-            let mainContent = "";
-            if (contentStartIndex !== -1) {
-                mainContent = text.substring(contentStartIndex + contentHeaderMarker.length);
-            } else {
-                 const metadataLines = text.split('\n').filter(l => 
-                    l.startsWith("Título:") || l.startsWith("Subtítulo:") || l.startsWith("Autor:") || l.startsWith("Editorial:") || l.startsWith("Texto Adicional Portada:") || l.startsWith("Índice de Capítulos") || (l.startsWith("- ") && l.includes("(pág. ~")) || l.trim() === ""
-                );
-                mainContent = text.split('\n').slice(metadataLines.length).join('\n');
+          if (newBook.chapters.length === 0 && !parsingContent) { 
+            // If "## Contenido del Libro ##" was not found, and no chapters parsed yet,
+            // treat everything after the known metadata as content for a single chapter.
+            let contentStartIndex = 0;
+            for (let i=0; i < lines.length; i++) {
+                if (!lines[i].match(/^(Título|Subtítulo|Autor|Editorial|Texto Adicional Portada|Índice de Capítulos):\s*(.*)/) && 
+                    !lines[i].startsWith("- ") &&
+                    lines[i].trim() !== "") {
+                    contentStartIndex = i;
+                    break;
+                }
+                if (i === lines.length -1) contentStartIndex = lines.length; // No content found
             }
-             newBook.chapters.push({
-                id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
+            const mainContent = lines.slice(contentStartIndex).join('\n');
+            newBook.chapters.push({
+                id: Date.now().toString() + Math.random().toString(36).substring(2,7),
                 title: 'Contenido Principal',
                 content: mainContent.trim(),
-             });
+            });
+          } else if (newBook.chapters.length === 0 && parsingContent && currentChapterContent.length === 0 && currentChapterTitle === "Capítulo sin Título"){
+            // This case handles if the file is empty after "## Contenido del Libro ##"
+             newBook.chapters.push(createInitialChapter());
           }
+
 
           newBook.coverImage = null; 
           newBook.authorImage = null;
@@ -597,10 +613,10 @@ export default function EscribaLibroApp() {
   const handleFileRead = (file: File, callback: (result: string) => void) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      if ((reader.result as string).length > 2 * 1024 * 1024) { 
+      if ((reader.result as string).length > MAX_IMAGE_SIZE_BYTES) { 
         toast({
           title: "Imagen Demasiado Grande",
-          description: "La imagen seleccionada es muy grande (máx 2MB). Intenta con una de menor tamaño.",
+          description: `La imagen seleccionada es muy grande (máx ${MAX_IMAGE_SIZE_BYTES / (1024*1024)}MB). Intenta con una de menor tamaño.`,
           variant: "destructive",
           duration: 5000
         });
@@ -767,7 +783,7 @@ export default function EscribaLibroApp() {
         const titleContainer = createTextContainer(currentBook.titlePosition, true);
         const titleEl = document.createElement('h1');
         titleEl.textContent = currentBook.title;
-        titleEl.style.fontSize = '48px'; 
+        titleEl.style.fontSize = `${formattingOptions.coverTitleFontSize || 48}px`; 
         titleEl.style.fontWeight = 'bold';
         titleEl.style.textShadow = currentBook.coverImage ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none';
         titleEl.style.marginBottom = '15px';
@@ -778,7 +794,7 @@ export default function EscribaLibroApp() {
             const subtitleContainer = createTextContainer(currentBook.subtitlePosition, !currentBook.titlePosition?.startsWith('middle'));
             const subtitleEl = document.createElement('h2');
             subtitleEl.textContent = currentBook.subtitle;
-            subtitleEl.style.fontSize = '28px';
+            subtitleEl.style.fontSize = `${formattingOptions.coverSubtitleFontSize || 28}px`;
             subtitleEl.style.fontWeight = 'normal';
             subtitleEl.style.fontStyle = 'italic';
             subtitleEl.style.textShadow = currentBook.coverImage ? '1px 1px 3px rgba(0,0,0,0.6)' : 'none';
@@ -791,9 +807,9 @@ export default function EscribaLibroApp() {
             const freeTextContainer = createTextContainer(currentBook.coverFreeTextPosition, !(currentBook.titlePosition?.startsWith('middle') || currentBook.subtitlePosition?.startsWith('middle')));
             const freeTextEl = document.createElement('p');
             freeTextEl.textContent = currentBook.coverFreeText;
-            freeTextEl.style.fontSize = '18px'; // Or adjust as needed
+            freeTextEl.style.fontSize = '18px'; 
             freeTextEl.style.textShadow = currentBook.coverImage ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none';
-            freeTextEl.style.marginTop = '15px'; // Example spacing
+            freeTextEl.style.marginTop = '15px'; 
             freeTextContainer.appendChild(freeTextEl);
             textOverlay.appendChild(freeTextContainer);
         }
@@ -978,7 +994,7 @@ export default function EscribaLibroApp() {
           img.src = imgSrc;
           img.alt = altText || 'Imagen insertada';
           img.style.maxWidth = '85%'; 
-          img.style.maxHeight = '400px'; // Max height for content images in PDF
+          img.style.maxHeight = '400px'; 
           img.style.height = 'auto';
           img.style.borderRadius = '4px';
           img.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
@@ -999,30 +1015,13 @@ export default function EscribaLibroApp() {
              firstParagraphAfterHeadingPDF = false;
           } else {
             let processedLine = line.trim() === '' ? '&nbsp;' : line;
-            // Basic Markdown to HTML for PDF
             processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
             processedLine = processedLine.replace(/(\s|^)\*(.*?)\*(\s|$)/g, '$1<em>$2</em>$3');     
             processedLine = processedLine.replace(/(\s|^)_(.*?)_(\s|$)/g, '$1<em>$2</em>$3');
             p.innerHTML = processedLine;
 
             if (line.trim() !== '') {
-                 if(firstParagraphAfterHeadingPDF && !line.startsWith('## ')){
-                     p.style.textIndent = '0';
-                      const firstLetterSpan = document.createElement('span');
-                      firstLetterSpan.textContent = p.textContent?.charAt(0) || '';
-                      firstLetterSpan.style.fontSize = `${formattingOptions.fontSize * 2.5 * 1.2}px`;
-                      firstLetterSpan.style.fontWeight = 'bold';
-                      firstLetterSpan.style.float = 'left';
-                      firstLetterSpan.style.lineHeight = `${formattingOptions.fontSize * 1.2 * 0.8}px`;
-                      firstLetterSpan.style.marginRight = `${formattingOptions.fontSize * 0.07 * 1.2}px`;
-                      firstLetterSpan.style.paddingTop = `${formattingOptions.fontSize * 0.07 * 1.2}px`;
-                      firstLetterSpan.style.color = `hsl(var(--primary))`;
-                      p.innerHTML = (p.textContent?.substring(1) || '');
-                      p.prepend(firstLetterSpan);
-                     firstParagraphAfterHeadingPDF = false; 
-                 } else if (!line.startsWith('## ')) { 
-                    p.style.textIndent = '1.5em';
-                 }
+                p.style.textIndent = '1.5em';
             }
           }
           p.style.margin = `${formattingOptions.fontSize * 0.4}px 0`; 
@@ -1216,10 +1215,10 @@ export default function EscribaLibroApp() {
           .cover-section .text-overlay { position: relative; z-index: 2; background: ${currentBook.coverImage ? 'rgba(0,0,0,0.6)' : 'transparent'}; color: ${currentBook.coverImage ? 'white' : formattingOptions.textColor}; padding: 40px; border-radius: 8px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box; }
           
           .cover-title-container { width: 100%; display: flex; flex-direction: column; text-align: ${getTextAlignClass(currentBook.titlePosition).replace('text-','')}; justify-content: ${getVerticalAlignClass(currentBook.titlePosition).replace('justify-','')}; ${currentBook.titlePosition?.startsWith('middle') ? 'flex-grow: 1;' : ''} }
-          .cover-section h1.book-title-cover { font-size: ${formattingOptions.fontSize * 3.5}px; margin-bottom: 0.2em; text-shadow: ${currentBook.coverImage ? '2px 2px 5px rgba(0,0,0,0.8)' : 'none'}; }
+          .cover-section h1.book-title-cover { font-size: ${formattingOptions.coverTitleFontSize || 48}px; margin-bottom: 0.2em; text-shadow: ${currentBook.coverImage ? '2px 2px 5px rgba(0,0,0,0.8)' : 'none'}; }
           
           .cover-subtitle-container { width: 100%; display: flex; flex-direction: column; text-align: ${getTextAlignClass(currentBook.subtitlePosition).replace('text-','')}; justify-content: ${getVerticalAlignClass(currentBook.subtitlePosition).replace('justify-','')}; ${currentBook.subtitlePosition?.startsWith('middle') && !currentBook.titlePosition?.startsWith('middle') ? 'flex-grow: 1;' : ''} }
-          .cover-section h2.book-subtitle-cover { font-size: ${formattingOptions.fontSize * 2}px; font-style: italic; margin-bottom: 1em; text-shadow: ${currentBook.coverImage ? '1px 1px 3px rgba(0,0,0,0.7)' : 'none'}; }
+          .cover-section h2.book-subtitle-cover { font-size: ${formattingOptions.coverSubtitleFontSize || 28}px; font-style: italic; margin-bottom: 1em; text-shadow: ${currentBook.coverImage ? '1px 1px 3px rgba(0,0,0,0.7)' : 'none'}; }
 
           .cover-free-text-container { width: 100%; display: flex; flex-direction: column; text-align: ${getTextAlignClass(currentBook.coverFreeTextPosition).replace('text-','')}; justify-content: ${getVerticalAlignClass(currentBook.coverFreeTextPosition).replace('justify-','')}; ${currentBook.coverFreeTextPosition?.startsWith('middle') && !currentBook.titlePosition?.startsWith('middle') && !currentBook.subtitlePosition?.startsWith('middle') ? 'flex-grow: 1;' : ''} }
           .cover-section p.cover-free-text { font-size: ${formattingOptions.fontSize * 1.2}px; margin-top: 1em; text-shadow: ${currentBook.coverImage ? '1px 1px 2px rgba(0,0,0,0.6)' : 'none'}; }
@@ -1251,26 +1250,8 @@ export default function EscribaLibroApp() {
           h2.chapter-title-html { font-size: ${formattingOptions.fontSize * 1.8}px; margin-top: 2.5em; margin-bottom: 1em; padding-bottom: 0.4em; border-bottom: 2px solid ${formattingOptions.textColor}; text-indent:0; }
           .content-image { max-width: 90%; max-height: 500px; height: auto; display: block; margin: 2em auto; border-radius: 5px; box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
           
-          .html-paragraph { margin-bottom: ${formattingOptions.fontSize * 0.7}px; text-align: justify; }
-          .html-paragraph.first-paragraph.first-letter-capital { text-indent: 0; }
-          .html-paragraph:not(.first-paragraph).first-letter-capital,
-          .html-paragraph:not(.first-paragraph):not(.first-letter-capital) { text-indent: 1.5em; }
-
-
-          .html-paragraph.first-letter-capital::first-letter {
-            font-size: ${formattingOptions.fontSize * 2.5}px;
-            font-weight: bold;
-            float: left;
-            line-height: ${formattingOptions.fontSize * 0.8}px;
-            margin-right: ${formattingOptions.fontSize * 0.07}px;
-            padding-top: ${formattingOptions.fontSize * 0.07}px;
-            color: hsl(var(--primary));
-          }
-          .chapter-title-html + .html-paragraph.first-letter-capital, /* Parrafo despues de titulo de capitulo */
-          .page-break-html + .html-paragraph.first-letter-capital /* Parrafo despues de salto de pagina */
-          {
-             text-indent: 0;
-          }
+          .html-paragraph { margin-bottom: ${formattingOptions.fontSize * 0.7}px; text-align: justify; text-indent: 1.5em; }
+          .html-paragraph.first-paragraph { text-indent: 0; } /* Removed first-letter-capital application from here */
           
           .toc { border: 1px solid #e0e0e0; padding: 20px 30px; margin-bottom: 35px; background-color: #f9f9f9; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
           .toc h2 { text-align: center; margin-top: 0; font-size: ${formattingOptions.fontSize * 1.6}px; margin-bottom: 20px; }
@@ -1359,14 +1340,11 @@ export default function EscribaLibroApp() {
 
           let pClass = "html-paragraph";
           if (firstParagraphInChapter && processedLine.trim() !== '') {
-            pClass += " first-paragraph first-letter-capital"; 
+            pClass += " first-paragraph"; 
             firstParagraphInChapter = false;
           } else if (processedLine.trim() === '') {
              pClass += " empty-paragraph"; 
-          } else if (processedLine.trim() !== '') {
-            pClass += " first-letter-capital"; // Apply to all non-empty paragraphs
           }
-
 
           return processedLine.trim() === '' ? `<p class="html-paragraph">&nbsp;</p>` : `<p class="${pClass}">${processedLine}</p>`;
         }).join('\n');
@@ -1653,7 +1631,7 @@ export default function EscribaLibroApp() {
                 </CardHeader>
                 <CardContent className="space-y-6 p-4 md:p-6">
                   <div className="space-y-2">
-                    <Label htmlFor="fontFamily" className="text-sm font-medium">Fuente Principal</Label>
+                    <Label htmlFor="fontFamily" className="text-sm font-medium">Fuente Principal (Contenido)</Label>
                     <Select onValueChange={(value) => handleFormattingChange('fontFamily', value)} value={formattingOptions.fontFamily}>
                       <SelectTrigger id="fontFamily" className="mt-1 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -1670,22 +1648,33 @@ export default function EscribaLibroApp() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="fontSize" className="text-sm font-medium">Tamaño Fuente (px)</Label>
+                      <Label htmlFor="fontSize" className="text-sm font-medium">Tamaño Fuente Contenido (px)</Label>
                       <Input id="fontSize" type="number" value={formattingOptions.fontSize} onChange={(e) => handleFormattingChange('fontSize', Math.max(8, parseInt(e.target.value,10)))} className="mt-1 text-sm"/>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lineHeight" className="text-sm font-medium">Altura Línea (ej: 1.6)</Label>
+                      <Label htmlFor="lineHeight" className="text-sm font-medium">Altura Línea Contenido (ej: 1.6)</Label>
                       <Input id="lineHeight" type="number" value={formattingOptions.lineHeight} step="0.1" min="0.5" onChange={(e) => handleFormattingChange('lineHeight', parseFloat(e.target.value))} className="mt-1 text-sm"/>
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="coverTitleFontSize" className="text-sm font-medium">Tamaño Fuente Título Portada (px)</Label>
+                        <Input id="coverTitleFontSize" type="number" value={formattingOptions.coverTitleFontSize || 48} onChange={(e) => handleFormattingChange('coverTitleFontSize', parseInt(e.target.value,10))} className="mt-1 text-sm"/>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="coverSubtitleFontSize" className="text-sm font-medium">Tamaño Fuente Subtítulo Portada (px)</Label>
+                        <Input id="coverSubtitleFontSize" type="number" value={formattingOptions.coverSubtitleFontSize || 28} onChange={(e) => handleFormattingChange('coverSubtitleFontSize', parseInt(e.target.value,10))} className="mt-1 text-sm"/>
+                    </div>
+                  </div>
+                  
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                     <div className="space-y-2">
-                      <Label htmlFor="textColor" className="text-sm font-medium">Color Texto</Label>
+                      <Label htmlFor="textColor" className="text-sm font-medium">Color Texto (Contenido)</Label>
                       <Input id="textColor" type="color" value={formattingOptions.textColor} onChange={(e) => handleFormattingChange('textColor', e.target.value)} className="mt-1 h-10 p-1 w-full rounded-md border-2 border-input"/>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="pageBackgroundColor" className="text-sm font-medium">Fondo Página (Vista)</Label>
+                      <Label htmlFor="pageBackgroundColor" className="text-sm font-medium">Fondo Página (Vista Previa)</Label>
                       <Input id="pageBackgroundColor" type="color" value={formattingOptions.pageBackgroundColor} onChange={(e) => handleFormattingChange('pageBackgroundColor', e.target.value)} className="mt-1 h-10 p-1 w-full rounded-md border-2 border-input"/>
                     </div>
                      <div className="space-y-2">
@@ -1696,7 +1685,7 @@ export default function EscribaLibroApp() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="previewPadding" className="text-sm font-medium">Relleno Página (px en vista)</Label>
+                        <Label htmlFor="previewPadding" className="text-sm font-medium">Relleno Página (px en vista previa)</Label>
                         <Input id="previewPadding" type="number" value={formattingOptions.previewPadding} min="0" onChange={(e) => handleFormattingChange('previewPadding', Math.max(0, parseInt(e.target.value,10)))} className="mt-1 text-sm"/>
                     </div>
                     <div className="space-y-2">
@@ -1825,11 +1814,17 @@ export default function EscribaLibroApp() {
                          {currentBook.coverImage && <NextImage src={currentBook.coverImage} alt="Miniatura de Portada" layout="fill" objectFit="cover" data-ai-hint="book cover" />}
                          
                          <div className={`${coverTextPositionClasses(currentBook.titlePosition, 'title')}`}>
-                           <h3 className="text-base font-bold text-white [text-shadow:1px_1px_2px_rgba(0,0,0,0.7)] break-words leading-tight">{currentBook.title}</h3>
+                           <h3 
+                            className="text-base font-bold text-white [text-shadow:1px_1px_2px_rgba(0,0,0,0.7)] break-words leading-tight"
+                            style={{ fontSize: `${Math.max(10, (formattingOptions.coverTitleFontSize || 48) * 0.4)}px`}} // Scale down for thumbnail
+                           >{currentBook.title}</h3>
                          </div>
                           {currentBook.subtitle && (
                             <div className={`${coverTextPositionClasses(currentBook.subtitlePosition, 'subtitle')}`}>
-                                <p className="text-xs text-gray-200 [text-shadow:1px_1px_1px_rgba(0,0,0,0.5)] break-words mt-1"><em>{currentBook.subtitle}</em></p>
+                                <p 
+                                 className="text-xs text-gray-200 [text-shadow:1px_1px_1px_rgba(0,0,0,0.5)] break-words mt-1"
+                                 style={{ fontSize: `${Math.max(8, (formattingOptions.coverSubtitleFontSize || 28) * 0.4)}px`}} // Scale down
+                                ><em>{currentBook.subtitle}</em></p>
                             </div>
                           )}
                           {currentBook.editorial && (
@@ -1885,7 +1880,7 @@ export default function EscribaLibroApp() {
                     style={{
                         backgroundColor: currentBook.coverImage ? '#333' : formattingOptions.pageBackgroundColor, 
                         color: currentBook.coverImage ? 'white' : formattingOptions.textColor,
-                        fontFamily: formattingOptions.fontFamily, // Asegurar que la fuente de formato se aplique
+                        fontFamily: formattingOptions.fontFamily, 
                     }}>
                     {currentBook.coverImage ? (
                       <NextImage src={currentBook.coverImage} alt="Vista Previa de Portada" layout="fill" objectFit="cover" data-ai-hint="book cover"/>
@@ -1896,11 +1891,17 @@ export default function EscribaLibroApp() {
                       </div>
                     )}
                      <div className={`${coverTextPositionClasses(currentBook.titlePosition, 'title')}`}>
-                        <h2 className="text-xl md:text-2xl font-bold [text-shadow:1px_1px_3px_rgba(0,0,0,0.8)] mb-1 md:mb-2 leading-tight break-words">{currentBook.title}</h2>
+                        <h2 
+                            className="font-bold [text-shadow:1px_1px_3px_rgba(0,0,0,0.8)] mb-1 md:mb-2 leading-tight break-words"
+                            style={{ fontSize: `${formattingOptions.coverTitleFontSize || 48}px` }}
+                        >{currentBook.title}</h2>
                      </div>
                      {currentBook.subtitle && (
                        <div className={`${coverTextPositionClasses(currentBook.subtitlePosition, 'subtitle')}`}>
-                          <p className="text-base md:text-lg [text-shadow:1px_1px_2px_rgba(0,0,0,0.6)] italic break-words">{currentBook.subtitle}</p>
+                          <p 
+                            className="[text-shadow:1px_1px_2px_rgba(0,0,0,0.6)] italic break-words"
+                            style={{ fontSize: `${formattingOptions.coverSubtitleFontSize || 28}px` }}
+                          >{currentBook.subtitle}</p>
                        </div>
                      )}
                      {currentBook.editorial && (
