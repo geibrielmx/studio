@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = "1.2.0"; // Versión actualizada
+const APP_VERSION = "1.2.1"; 
 const COPYRIGHT_NOTICE = `© ${new Date().getFullYear()} GaboGmx. Todos los derechos reservados.`;
 
 const PAGE_CONTENT_TARGET_HEIGHT_PX = 680;
@@ -132,13 +132,11 @@ function createPageContentElements(
     let pClassName = `my-1.5 md:my-2 book-paragraph ${isChapterHeadingLine ? 'chapter-heading font-bold text-xl md:text-2xl !text-left !indent-0 !pl-0 !pt-4 !pb-2 border-b-2 border-primary mb-4' : ''}`;
     
     if (!isChapterHeadingLine && firstParagraphAfterHeading && paragraph.trim() !== '') {
-      // La clase 'first-letter-capital' se aplica en globals.css si es necesario
-      pClassName += ' first-paragraph-after-heading'; // Placeholder para posible estilo futuro, la lógica de la clase está en globals
-      firstParagraphAfterHeading = false; 
+       pClassName += ' first-letter-capital first-paragraph-after-heading';
+       firstParagraphAfterHeading = false; 
     } else if (!isChapterHeadingLine && paragraph.trim() !== '') {
        pClassName += ' normal-paragraph';
     }
-
 
     const pContent = isChapterHeadingLine ? paragraph.substring(3).trim() : (paragraph.trim() === '' ? <>&nbsp;</> : paragraph);
 
@@ -509,8 +507,8 @@ export default function EscribaLibroApp() {
           setCurrentPreviewPageIndex(0);
           toast({
             title: "Libro Cargado desde TXT",
-            description: `"${newBook.title}" está listo. Sube imágenes manualmente si es necesario.`,
-            duration: 4000,
+            description: `"${newBook.title}" está listo. El contenido se ha formateado en capítulos. Sube imágenes manualmente si es necesario.`,
+            duration: 5000,
           });
         } catch (error) {
           console.error("Error al parsear el archivo TXT:", error);
@@ -980,7 +978,7 @@ export default function EscribaLibroApp() {
           img.src = imgSrc;
           img.alt = altText || 'Imagen insertada';
           img.style.maxWidth = '85%'; 
-          img.style.maxHeight = '400px'; 
+          img.style.maxHeight = '400px'; // Max height for content images in PDF
           img.style.height = 'auto';
           img.style.borderRadius = '4px';
           img.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
@@ -1000,25 +998,29 @@ export default function EscribaLibroApp() {
              p.innerHTML = `<span style="font-style: italic; color: #888; text-align: center; display: block;">[Imagen: ${altText || 'Referencia de imagen externa'}]</span>`;
              firstParagraphAfterHeadingPDF = false;
           } else {
-            p.innerHTML = line.trim() === '' ? '&nbsp;' : line; 
+            let processedLine = line.trim() === '' ? '&nbsp;' : line;
+            // Basic Markdown to HTML for PDF
+            processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            processedLine = processedLine.replace(/(\s|^)\*(.*?)\*(\s|$)/g, '$1<em>$2</em>$3');     
+            processedLine = processedLine.replace(/(\s|^)_(.*?)_(\s|$)/g, '$1<em>$2</em>$3');
+            p.innerHTML = processedLine;
+
             if (line.trim() !== '') {
-                 if(firstParagraphAfterHeadingPDF){
+                 if(firstParagraphAfterHeadingPDF && !line.startsWith('## ')){
                      p.style.textIndent = '0';
-                     if (!line.startsWith('## ')) { // Solo aplicar si no es un encabezado de capítulo
-                        const firstLetterSpan = document.createElement('span');
-                        firstLetterSpan.textContent = p.innerHTML.charAt(0);
-                        firstLetterSpan.style.fontSize = `${formattingOptions.fontSize * 2.5 * 1.2}px`;
-                        firstLetterSpan.style.fontWeight = 'bold';
-                        firstLetterSpan.style.float = 'left';
-                        firstLetterSpan.style.lineHeight = `${formattingOptions.fontSize * 1.2 * 0.8}px`;
-                        firstLetterSpan.style.marginRight = `${formattingOptions.fontSize * 0.07 * 1.2}px`; // Ajustado
-                        firstLetterSpan.style.paddingTop = `${formattingOptions.fontSize * 0.07 * 1.2}px`; // Ajustado
-                        firstLetterSpan.style.color = `hsl(var(--primary))`;
-                        p.innerHTML = p.innerHTML.substring(1);
-                        p.prepend(firstLetterSpan);
-                     }
+                      const firstLetterSpan = document.createElement('span');
+                      firstLetterSpan.textContent = p.textContent?.charAt(0) || '';
+                      firstLetterSpan.style.fontSize = `${formattingOptions.fontSize * 2.5 * 1.2}px`;
+                      firstLetterSpan.style.fontWeight = 'bold';
+                      firstLetterSpan.style.float = 'left';
+                      firstLetterSpan.style.lineHeight = `${formattingOptions.fontSize * 1.2 * 0.8}px`;
+                      firstLetterSpan.style.marginRight = `${formattingOptions.fontSize * 0.07 * 1.2}px`;
+                      firstLetterSpan.style.paddingTop = `${formattingOptions.fontSize * 0.07 * 1.2}px`;
+                      firstLetterSpan.style.color = `hsl(var(--primary))`;
+                      p.innerHTML = (p.textContent?.substring(1) || '');
+                      p.prepend(firstLetterSpan);
                      firstParagraphAfterHeadingPDF = false; 
-                 } else if (!line.startsWith('## ')) { // No indentar encabezados
+                 } else if (!line.startsWith('## ')) { 
                     p.style.textIndent = '1.5em';
                  }
             }
@@ -1247,11 +1249,13 @@ export default function EscribaLibroApp() {
           h1.book-title-content { font-size: ${formattingOptions.fontSize * 2.5}px; text-align: center; margin-bottom: 0.1em; }
           h3.author-name-content { font-size: ${formattingOptions.fontSize * 1.4}px; text-align: center; font-style: italic; margin-top:0; margin-bottom: 2.5em; }
           h2.chapter-title-html { font-size: ${formattingOptions.fontSize * 1.8}px; margin-top: 2.5em; margin-bottom: 1em; padding-bottom: 0.4em; border-bottom: 2px solid ${formattingOptions.textColor}; text-indent:0; }
-          .content-image { max-width: 90%; height: auto; display: block; margin: 2em auto; border-radius: 5px; box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
+          .content-image { max-width: 90%; max-height: 500px; height: auto; display: block; margin: 2em auto; border-radius: 5px; box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
           
           .html-paragraph { margin-bottom: ${formattingOptions.fontSize * 0.7}px; text-align: justify; }
-          .html-paragraph.first-paragraph { text-indent: 0; }
-          .html-paragraph:not(.first-paragraph) { text-indent: 1.5em; }
+          .html-paragraph.first-paragraph.first-letter-capital { text-indent: 0; }
+          .html-paragraph:not(.first-paragraph).first-letter-capital,
+          .html-paragraph:not(.first-paragraph):not(.first-letter-capital) { text-indent: 1.5em; }
+
 
           .html-paragraph.first-letter-capital::first-letter {
             font-size: ${formattingOptions.fontSize * 2.5}px;
@@ -1261,6 +1265,11 @@ export default function EscribaLibroApp() {
             margin-right: ${formattingOptions.fontSize * 0.07}px;
             padding-top: ${formattingOptions.fontSize * 0.07}px;
             color: hsl(var(--primary));
+          }
+          .chapter-title-html + .html-paragraph.first-letter-capital, /* Parrafo despues de titulo de capitulo */
+          .page-break-html + .html-paragraph.first-letter-capital /* Parrafo despues de salto de pagina */
+          {
+             text-indent: 0;
           }
           
           .toc { border: 1px solid #e0e0e0; padding: 20px 30px; margin-bottom: 35px; background-color: #f9f9f9; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
@@ -1350,11 +1359,14 @@ export default function EscribaLibroApp() {
 
           let pClass = "html-paragraph";
           if (firstParagraphInChapter && processedLine.trim() !== '') {
-            pClass += " first-paragraph first-letter-capital"; // Se aplica a la primera
+            pClass += " first-paragraph first-letter-capital"; 
             firstParagraphInChapter = false;
           } else if (processedLine.trim() === '') {
-             pClass += " empty-paragraph"; // No se aplicará first-letter-capital
+             pClass += " empty-paragraph"; 
+          } else if (processedLine.trim() !== '') {
+            pClass += " first-letter-capital"; // Apply to all non-empty paragraphs
           }
+
 
           return processedLine.trim() === '' ? `<p class="html-paragraph">&nbsp;</p>` : `<p class="${pClass}">${processedLine}</p>`;
         }).join('\n');
@@ -1518,7 +1530,7 @@ export default function EscribaLibroApp() {
 
                   {currentEditingChapter && (
                     <div className="space-y-3 flex-1 flex flex-col">
-                         <div className="space-y-1">
+                        <div className="space-y-1">
                             <Label htmlFor="chapterTitle" className="text-sm font-medium">Título del Capítulo:</Label>
                             <div className="flex items-center gap-2">
                                 <Input
