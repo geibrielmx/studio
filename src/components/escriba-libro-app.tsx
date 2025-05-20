@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import NextImage from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { UploadCloud, BookOpen, Type, User, Settings, Palette, FileText, Image as ImageIcon, Paintbrush, Save, Loader2, ListOrdered, FolderOpen, FileDown, FileCode, FilePlus, Trash2, ChevronLeft, ChevronRight, UserSquare2, FileSearch, Building, AlignLeft, AlignCenter, AlignRight, BookIcon, Feather, Edit3, PlusCircle, HelpCircle } from 'lucide-react';
+import { UploadCloud, BookOpen, Type, User, Settings, Palette, FileText, Image as ImageIcon, Paintbrush, Save, Loader2, ListOrdered, FolderOpen, FileDown, FileCode, FilePlus, Trash2, ChevronLeft, ChevronRight, UserSquare2, FileSearch, Building, AlignLeft, AlignCenter, AlignRight, BookIcon, Feather, Edit3, PlusCircle, HelpCircle, BookCopy } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -65,7 +65,16 @@ const createInitialBook = (): Book => ({
   subtitlePosition: 'middle-center',
   editorialPosition: 'bottom-center',
   coverFreeTextPosition: 'bottom-center',
-  lastModified: Date.now(), 
+  lastModified: Date.now(),
+  // Back Cover Defaults
+  backCoverSynopsis: '',
+  backCoverSynopsisPosition: 'middle-center',
+  backCoverSlogan: '',
+  backCoverSloganPosition: 'bottom-center',
+  backCoverImage: null,
+  backCoverImagePosition: 'middle-center',
+  backCoverAuthorNamePosition: 'bottom-right',
+  backCoverColor: 'hsl(var(--card))', // Default to card background
 });
 
 const initialFormattingOptions: FormattingOptions = {
@@ -78,8 +87,8 @@ const initialFormattingOptions: FormattingOptions = {
   lineHeight: 1.6,
   pageNumberAlignment: 'center',
   tocPosition: 'start',
-  coverTitleFontSize: 48, // Default cover title font size
-  coverSubtitleFontSize: 28, // Default cover subtitle font size
+  coverTitleFontSize: 48,
+  coverSubtitleFontSize: 28,
 };
 
 
@@ -134,14 +143,22 @@ function createPageContentElements(
     let pClassName = `my-1.5 md:my-2 book-paragraph ${isChapterHeadingLine ? 'chapter-heading font-bold text-xl md:text-2xl !text-left !indent-0 !pl-0 !pt-4 !pb-2 border-b-2 border-primary mb-4' : ''}`;
     
     if (!isChapterHeadingLine && firstParagraphAfterHeading && paragraph.trim() !== '') {
-       pClassName += ' first-paragraph-after-heading'; // No more first-letter-capital by default
+       pClassName += ' first-letter-capital first-paragraph-after-heading';
        firstParagraphAfterHeading = false; 
-    } else if (!isChapterHeadingLine && paragraph.trim() !== '') {
-       pClassName += ' normal-paragraph';
+    } else if (!isChapterHeadingLine && paragraph.trim() !== '' && paragraph.trim() !== '&nbsp;') {
+       pClassName += ' first-letter-capital normal-paragraph';
     }
 
-    const pContent = isChapterHeadingLine ? paragraph.substring(3).trim() : (paragraph.trim() === '' ? <>&nbsp;</> : paragraph);
 
+    const pContent = isChapterHeadingLine ? paragraph.substring(3).trim() : (paragraph.trim() === '' ? <>&nbsp;</> : paragraph
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(\s|^)\*(.*?)\*(\s|$)/g, '$1<em>$2</em>$3')
+        .replace(/(\s|^)_(.*?)_(\s|$)/g, '$1<em>$2</em>$3')
+    );
+
+    if (typeof pContent === 'string') {
+      return <p key={`${pageKeyPrefix}-line-${index}`} className={pClassName} dangerouslySetInnerHTML={{ __html: pContent }}></p>;
+    }
     return <p key={`${pageKeyPrefix}-line-${index}`} className={pClassName}>{pContent}</p>;
   });
   return { elements, chapterTitle, isStartOfChapter };
@@ -390,8 +407,12 @@ export default function EscribaLibroApp() {
     if(currentBook.coverFreeText) txtContent += `Texto Adicional Portada: ${currentBook.coverFreeText}\n`;
     txtContent += "\n";
     
+    if (currentBook.backCoverSynopsis) txtContent += `Sinopsis Contraportada: ${currentBook.backCoverSynopsis}\n`;
+    if (currentBook.backCoverSlogan) txtContent += `Eslogan Contraportada: ${currentBook.backCoverSlogan}\n`;
+    if (currentBook.backCoverSynopsis || currentBook.backCoverSlogan) txtContent += "\n";
+
     const tocForTxt = generateTableOfContents(paginatedPreview, currentBook.chapters || []);
-    if (tocForTxt.length > 0) {
+    if (tocForTxt.length > 0 && formattingOptions.tocPosition !== 'none') {
       txtContent += "Índice de Capítulos (estimado):\n";
       tocForTxt.forEach(entry => {
         txtContent += `- ${entry.title} (pág. ~${entry.estimatedPage})\n`;
@@ -453,12 +474,16 @@ export default function EscribaLibroApp() {
               if (editorialMatch) { newBook.editorial = editorialMatch[1].trim(); continue; }
               const coverFreeTextMatch = line.match(/^Texto Adicional Portada:\s*(.*)/);
               if (coverFreeTextMatch) { newBook.coverFreeText = coverFreeTextMatch[1].trim(); continue; }
+              const backCoverSynopsisMatch = line.match(/^Sinopsis Contraportada:\s*(.*)/);
+                if (backCoverSynopsisMatch) { newBook.backCoverSynopsis = backCoverSynopsisMatch[1].trim(); continue; }
+              const backCoverSloganMatch = line.match(/^Eslogan Contraportada:\s*(.*)/);
+                if (backCoverSloganMatch) { newBook.backCoverSlogan = backCoverSloganMatch[1].trim(); continue; }
               
               if (line.trim() === "## Contenido del Libro ##") {
                 inHeaderSection = false;
                 parsingContent = true;
                 continue;
-              } else if (line.startsWith('## ')) { // Handle case where content starts immediately with a chapter
+              } else if (line.startsWith('## ')) { 
                 inHeaderSection = false;
                 parsingContent = true;
               }
@@ -489,17 +514,15 @@ export default function EscribaLibroApp() {
           }
           
           if (newBook.chapters.length === 0 && !parsingContent) { 
-            // If "## Contenido del Libro ##" was not found, and no chapters parsed yet,
-            // treat everything after the known metadata as content for a single chapter.
             let contentStartIndex = 0;
             for (let i=0; i < lines.length; i++) {
-                if (!lines[i].match(/^(Título|Subtítulo|Autor|Editorial|Texto Adicional Portada|Índice de Capítulos):\s*(.*)/) && 
+                if (!lines[i].match(/^(Título|Subtítulo|Autor|Editorial|Texto Adicional Portada|Sinopsis Contraportada|Eslogan Contraportada|Índice de Capítulos):\s*(.*)/) && 
                     !lines[i].startsWith("- ") &&
                     lines[i].trim() !== "") {
                     contentStartIndex = i;
                     break;
                 }
-                if (i === lines.length -1) contentStartIndex = lines.length; // No content found
+                if (i === lines.length -1) contentStartIndex = lines.length; 
             }
             const mainContent = lines.slice(contentStartIndex).join('\n');
             newBook.chapters.push({
@@ -508,13 +531,12 @@ export default function EscribaLibroApp() {
                 content: mainContent.trim(),
             });
           } else if (newBook.chapters.length === 0 && parsingContent && currentChapterContent.length === 0 && currentChapterTitle === "Capítulo sin Título"){
-            // This case handles if the file is empty after "## Contenido del Libro ##"
              newBook.chapters.push(createInitialChapter());
           }
 
-
           newBook.coverImage = null; 
           newBook.authorImage = null;
+          newBook.backCoverImage = null;
           newBook.lastModified = Date.now(); 
 
           setCurrentBook(newBook);
@@ -598,11 +620,18 @@ export default function EscribaLibroApp() {
   };
 
 
-  const handleBookDetailsChange = (field: keyof Pick<Book, 'title' | 'author' | 'subtitle' | 'editorial' | 'coverFreeText'>, value: string) => {
+  const handleBookDetailsChange = (
+    field: keyof Pick<Book, 'title' | 'author' | 'subtitle' | 'editorial' | 'coverFreeText' | 'backCoverSynopsis' | 'backCoverSlogan' | 'backCoverColor'>, 
+    value: string
+    ) => {
     setCurrentBook(prev => ({ ...prev, [field]: value, lastModified: Date.now() }));
   };
   
-  const handleCoverTextFieldChange = (field: keyof Pick<Book, 'titlePosition' | 'subtitlePosition' | 'editorialPosition' | 'coverFreeTextPosition'>, value: CoverTextPosition) => {
+  const handleCoverTextFieldChange = (
+    field: keyof Pick<Book, 'titlePosition' | 'subtitlePosition' | 'editorialPosition' | 'coverFreeTextPosition' | 
+                           'backCoverSynopsisPosition' | 'backCoverSloganPosition' | 'backCoverImagePosition' | 'backCoverAuthorNamePosition'>, 
+    value: CoverTextPosition
+    ) => {
     setCurrentBook(prev => ({ ...prev, [field]: value, lastModified: Date.now() }));
   };
 
@@ -645,6 +674,15 @@ export default function EscribaLibroApp() {
         setCurrentBook(prev => ({ ...prev, authorImage: base64Image, lastModified: Date.now() }));
       });
        if(event.target) event.target.value = '';
+    }
+  };
+
+  const handleBackCoverImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      handleFileRead(event.target.files[0], (base64Image) => {
+        setCurrentBook(prev => ({ ...prev, backCoverImage: base64Image, lastModified: Date.now() }));
+      });
+       if(event.target) event.target.value = ''; 
     }
   };
 
@@ -725,9 +763,10 @@ export default function EscribaLibroApp() {
 
 
   const createPdfPageHtml = (
-    pageData: PagePreviewData | { type: 'toc'; title: string; entries: ChapterEntry[]; pageNumberForFooter: number } | { type: 'cover' },
+    pageData: PagePreviewData | { type: 'toc'; title: string; entries: ChapterEntry[]; pageNumberForFooter: number } | { type: 'cover' } | { type: 'backCover' },
     isToc: boolean = false,
-    isCover: boolean = false
+    isCover: boolean = false,
+    isBackCover: boolean = false,
   ): HTMLDivElement => {
     const pageDiv = document.createElement('div');
     const pdfPageWidthPx = 750; 
@@ -735,11 +774,11 @@ export default function EscribaLibroApp() {
 
     pageDiv.style.width = `${pdfPageWidthPx}px`;
     pageDiv.style.height = `${pdfPageHeightPx}px`; 
-    pageDiv.style.padding = isCover ? '0px' : `${formattingOptions.previewPadding * 1.5}px`; 
+    pageDiv.style.padding = (isCover || isBackCover) ? '0px' : `${formattingOptions.previewPadding * 1.5}px`; 
     pageDiv.style.fontFamily = formattingOptions.fontFamily;
     pageDiv.style.fontSize = `${formattingOptions.fontSize * 1.2}px`; 
     pageDiv.style.color = formattingOptions.textColor;
-    pageDiv.style.backgroundColor = formattingOptions.pageBackgroundColor;
+    pageDiv.style.backgroundColor = (isCover || isBackCover) ? (isBackCover ? (currentBook.backCoverColor || formattingOptions.pageBackgroundColor) : formattingOptions.pageBackgroundColor) : formattingOptions.pageBackgroundColor;
     pageDiv.style.lineHeight = String(formattingOptions.lineHeight);
     pageDiv.style.display = 'flex';
     pageDiv.style.flexDirection = 'column';
@@ -897,6 +936,97 @@ export default function EscribaLibroApp() {
             pageDiv.appendChild(authorPhotoContainer); 
         }
 
+    } else if (isBackCover) {
+        pageDiv.style.backgroundColor = currentBook.backCoverColor || formattingOptions.pageBackgroundColor;
+        pageDiv.style.color = currentBook.backCoverImage ? 'white' : formattingOptions.textColor; // Adjust text color if image is present
+        
+        if (currentBook.backCoverImage) {
+            const img = document.createElement('img');
+            img.src = currentBook.backCoverImage;
+            img.style.position = 'absolute';
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            img.style.zIndex = '1';
+            pageDiv.appendChild(img);
+        }
+
+        const textOverlay = document.createElement('div');
+        textOverlay.style.position = 'absolute';
+        textOverlay.style.inset = '0';
+        textOverlay.style.display = 'flex';
+        textOverlay.style.flexDirection = 'column';
+        textOverlay.style.padding = '40px';
+        textOverlay.style.zIndex = '2';
+        textOverlay.style.color = currentBook.backCoverImage ? 'white' : formattingOptions.textColor; 
+        textOverlay.style.background = currentBook.backCoverImage ? 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0) 100%)' : 'transparent';
+
+
+        const createTextContainer = (textPos: CoverTextPosition | undefined, defaultFontSize: string, isBold?: boolean, isItalic?: boolean) => {
+            const container = document.createElement('div');
+            container.style.position = 'absolute';
+            container.style.width = `calc(100% - 80px)`; // padding
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            const textAlign = getTextAlignClass(textPos).replace('text-', '');
+            const verticalAlign = getVerticalAlignClass(textPos).replace('justify-', '');
+            
+            container.style.textAlign = textAlign as any;
+
+            if (textPos?.startsWith('top')) container.style.top = '40px';
+            else if (textPos?.startsWith('bottom')) container.style.bottom = '40px';
+            else {
+                 container.style.top = '50%';
+                 container.style.transform = 'translateY(-50%)';
+            }
+           
+            if (textPos?.includes('left')) container.style.left = '40px';
+            else if (textPos?.includes('right')) {
+                container.style.right = '40px';
+                if(textAlign === 'center') container.style.left = '40px'; // center with right preference
+            } else { // center
+                container.style.left = '40px'; 
+            }
+            return container;
+        };
+        
+        if (currentBook.backCoverSynopsis) {
+            const synopsisContainer = createTextContainer(currentBook.backCoverSynopsisPosition, `${formattingOptions.fontSize * 1.1}px`);
+            const synopsisEl = document.createElement('p');
+            synopsisEl.innerHTML = currentBook.backCoverSynopsis.replace(/\n/g, '<br>');
+            synopsisEl.style.fontSize = `${formattingOptions.fontSize * 1.1}px`;
+            synopsisEl.style.textShadow = currentBook.backCoverImage ? '1px 1px 2px rgba(0,0,0,0.7)' : 'none';
+            synopsisContainer.appendChild(synopsisEl);
+            textOverlay.appendChild(synopsisContainer);
+        }
+
+        if (currentBook.backCoverSlogan) {
+            const sloganContainer = createTextContainer(currentBook.backCoverSloganPosition, `${formattingOptions.fontSize * 1.3}px`, true);
+            const sloganEl = document.createElement('p');
+            sloganEl.textContent = currentBook.backCoverSlogan;
+            sloganEl.style.fontSize = `${formattingOptions.fontSize * 1.3}px`;
+            sloganEl.style.fontWeight = 'bold';
+            sloganEl.style.fontStyle = 'italic';
+            sloganEl.style.textShadow = currentBook.backCoverImage ? '1px 1px 2px rgba(0,0,0,0.7)' : 'none';
+            sloganContainer.appendChild(sloganEl);
+            textOverlay.appendChild(sloganContainer);
+        }
+        
+        if (currentBook.author) {
+            const authorContainer = createTextContainer(currentBook.backCoverAuthorNamePosition, `${formattingOptions.fontSize * 1}px`);
+            const authorEl = document.createElement('p');
+            authorEl.textContent = currentBook.author;
+            authorEl.style.fontSize = `${formattingOptions.fontSize * 1}px`;
+            authorEl.style.textShadow = currentBook.backCoverImage ? '1px 1px 2px rgba(0,0,0,0.7)' : 'none';
+            authorContainer.appendChild(authorEl);
+            textOverlay.appendChild(authorContainer);
+        }
+        
+        // Note: Actual image positioning on back cover for PDF not implemented here, only text.
+        // Would require similar logic to front cover image if a separate image is uploaded for back.
+
+        pageDiv.appendChild(textOverlay);
+
     } else if (isToc && 'type' in pageData && pageData.type === 'toc') {
       const tocHeader = document.createElement('h2');
       tocHeader.textContent = "Índice";
@@ -956,7 +1086,7 @@ export default function EscribaLibroApp() {
       pageDiv.appendChild(footerDiv);
 
 
-    } else if (!isToc && !isCover && 'rawContentLines' in pageData) {
+    } else if (!isToc && !isCover && !isBackCover && 'rawContentLines' in pageData) {
       const typedPageData = pageData as PagePreviewData;
 
       const headerDiv = document.createElement('div');
@@ -1022,6 +1152,10 @@ export default function EscribaLibroApp() {
 
             if (line.trim() !== '') {
                 p.style.textIndent = '1.5em';
+                 if (firstParagraphAfterHeadingPDF || (lineIdx > 0 && typedPageData.rawContentLines[lineIdx-1].startsWith('## '))) {
+                    p.style.textIndent = '0';
+                    firstParagraphAfterHeadingPDF = false; 
+                }
             }
           }
           p.style.margin = `${formattingOptions.fontSize * 0.4}px 0`; 
@@ -1036,7 +1170,11 @@ export default function EscribaLibroApp() {
             p.style.textIndent = '0'; 
             p.textContent = line.substring(3).trim();
             firstParagraphAfterHeadingPDF = true; 
+          } else if (firstParagraphAfterHeadingPDF && line.trim() !== '') {
+             p.style.textIndent = '0';
+             firstParagraphAfterHeadingPDF = false;
           }
+
           contentAreaDiv.appendChild(p);
         }
       });
@@ -1084,12 +1222,13 @@ export default function EscribaLibroApp() {
     document.body.appendChild(tempContainer);
     
 
-    const renderedCanvases: { type: 'cover' | 'toc' | 'content', canvas: HTMLCanvasElement, originalPageNumber: number }[] = [];
+    const renderedCanvases: { type: 'cover' | 'toc' | 'content' | 'backCover', canvas: HTMLCanvasElement, originalPageNumber: number }[] = [];
     let pdfPageCounter = 0; 
 
+    // 1. Render Cover
     if (currentBook.coverImage || currentBook.title) { 
         pdfPageCounter++;
-        const coverPageDiv = createPdfPageHtml({ type: 'cover' }, false, true);
+        const coverPageDiv = createPdfPageHtml({ type: 'cover' }, false, true, false);
         tempContainer.appendChild(coverPageDiv); 
         try {
             const coverCanvas = await html2canvas(coverPageDiv, { scale: 2, useCORS: true, backgroundColor: null, windowWidth: coverPageDiv.scrollWidth, windowHeight: coverPageDiv.scrollHeight });
@@ -1106,7 +1245,7 @@ export default function EscribaLibroApp() {
     let tocPageCount = (currentBook.chapters && currentBook.chapters.length > 0 && formattingOptions.tocPosition !== 'none') ? 1 : 0; 
     let contentStartPdfPageAfterToc = pdfPageCounter + tocPageCount + 1;
 
-
+    // 2. Render TOC (if at start)
     if (formattingOptions.tocPosition === 'start' && currentBook.chapters && currentBook.chapters.length > 0) {
         pdfPageCounter++;
         const tocPdfPageNumberForFooter = pdfPageCounter; 
@@ -1116,25 +1255,27 @@ export default function EscribaLibroApp() {
                 estimatedPage: contentStartPdfPageAfterToc + entry.estimatedPage -1 
             }));
 
-        const tocPageDiv = createPdfPageHtml({ type: 'toc', title: 'Índice', entries: tocEntriesForPdf, pageNumberForFooter: tocPdfPageNumberForFooter }, true);
+        const tocPageDiv = createPdfPageHtml({ type: 'toc', title: 'Índice', entries: tocEntriesForPdf, pageNumberForFooter: tocPdfPageNumberForFooter }, true, false, false);
         tempContainer.appendChild(tocPageDiv);
         const tocCanvas = await html2canvas(tocPageDiv, { scale: 2, useCORS: true, backgroundColor: null, windowWidth: tocPageDiv.scrollWidth, windowHeight: tocPageDiv.scrollHeight });
         renderedCanvases.push({ type: 'toc', canvas: tocCanvas, originalPageNumber: tocPdfPageNumberForFooter });
         tempContainer.removeChild(tocPageDiv);
     }
 
+    // 3. Render Content Pages
     for (const pageData of contentPagesForPdfGeneration) {
       pdfPageCounter++;
       const actualPdfPageForThisContent = pdfPageCounter; 
       const pdfPageData = { ...pageData, footerCenter: `Página ${actualPdfPageForThisContent}` }; 
       
-      const pageDiv = createPdfPageHtml(pdfPageData);
+      const pageDiv = createPdfPageHtml(pdfPageData, false, false, false);
       tempContainer.appendChild(pageDiv);
       const canvas = await html2canvas(pageDiv, { scale: 2, useCORS: true, backgroundColor: null, windowWidth: pageDiv.scrollWidth, windowHeight: pageDiv.scrollHeight });
       renderedCanvases.push({ type: 'content', canvas, originalPageNumber: actualPdfPageForThisContent });
       tempContainer.removeChild(pageDiv);
     }
     
+    // 4. Render TOC (if at end)
     if (formattingOptions.tocPosition === 'end' && currentBook.chapters && currentBook.chapters.length > 0) {
         pdfPageCounter++;
         const tocPdfPageNumberForFooter = pdfPageCounter;
@@ -1148,12 +1289,28 @@ export default function EscribaLibroApp() {
                 estimatedPage: contentStartPageNumberInPdfActual + entry.estimatedPage -1
             }));
 
-        const tocPageDiv = createPdfPageHtml({ type: 'toc', title: 'Índice', entries: tocEntriesForPdf, pageNumberForFooter: tocPdfPageNumberForFooter }, true);
+        const tocPageDiv = createPdfPageHtml({ type: 'toc', title: 'Índice', entries: tocEntriesForPdf, pageNumberForFooter: tocPdfPageNumberForFooter }, true, false, false);
         tempContainer.appendChild(tocPageDiv);
         const tocCanvas = await html2canvas(tocPageDiv, { scale: 2, useCORS: true, backgroundColor: null, windowWidth: tocPageDiv.scrollWidth, windowHeight: tocPageDiv.scrollHeight });
         renderedCanvases.push({ type: 'toc', canvas: tocCanvas, originalPageNumber: tocPdfPageNumberForFooter });
         tempContainer.removeChild(tocPageDiv);
     }
+
+    // 5. Render Back Cover
+    if (currentBook.backCoverSynopsis || currentBook.backCoverSlogan || currentBook.backCoverImage || currentBook.author) {
+        pdfPageCounter++;
+        const backCoverPageDiv = createPdfPageHtml({ type: 'backCover' }, false, false, true);
+        tempContainer.appendChild(backCoverPageDiv);
+        try {
+            const backCoverCanvas = await html2canvas(backCoverPageDiv, { scale: 2, useCORS: true, backgroundColor: null, windowWidth: backCoverPageDiv.scrollWidth, windowHeight: backCoverPageDiv.scrollHeight });
+            renderedCanvases.push({ type: 'backCover', canvas: backCoverCanvas, originalPageNumber: pdfPageCounter });
+        } catch (e) {
+            console.error("Error rendering back cover for PDF:", e);
+            toast({title: "Error Contraportada PDF", description: "Hubo un problema al renderizar la contraportada.", variant: "destructive"});
+        }
+        tempContainer.removeChild(backCoverPageDiv);
+    }
+
 
     renderedCanvases.sort((a,b) => a.originalPageNumber - b.originalPageNumber);
 
@@ -1210,25 +1367,25 @@ export default function EscribaLibroApp() {
           body { font-family: ${formattingOptions.fontFamily}; font-size: ${formattingOptions.fontSize}px; color: ${formattingOptions.textColor}; background-color: ${formattingOptions.pageBackgroundColor}; line-height: ${formattingOptions.lineHeight}; margin: 0; padding: 0; max-width: 100%; }
           .book-container { max-width: 800px; margin: 20px auto; padding: ${formattingOptions.previewPadding}px; border: 1px solid #ddd; box-shadow: 0 0 10px rgba(0,0,0,0.1); background-color: white; }
           
-          .cover-section { height: 100vh; display: flex; flex-direction: column; text-align: center; position: relative; background-color: #333; color: white; padding: 20px; box-sizing: border-box; overflow: hidden; }
-          .cover-section img.cover-image-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
-          .cover-section .text-overlay { position: relative; z-index: 2; background: ${currentBook.coverImage ? 'rgba(0,0,0,0.6)' : 'transparent'}; color: ${currentBook.coverImage ? 'white' : formattingOptions.textColor}; padding: 40px; border-radius: 8px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box; }
+          .cover-section, .back-cover-section { min-height: 90vh; display: flex; flex-direction: column; text-align: center; position: relative; background-color: #333; color: white; padding: 20px; box-sizing: border-box; overflow: hidden; }
+          .back-cover-section { background-color: ${currentBook.backCoverColor || '#eee'}; color: ${currentBook.backCoverImage ? 'white' : formattingOptions.textColor};}
+          .cover-section img.cover-image-bg, .back-cover-section img.back-cover-image-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+          .cover-section .text-overlay, .back-cover-section .text-overlay { position: relative; z-index: 2; background: ${currentBook.coverImage || currentBook.backCoverImage ? 'rgba(0,0,0,0.6)' : 'transparent'}; color: ${currentBook.coverImage || currentBook.backCoverImage ? 'white' : formattingOptions.textColor}; padding: 40px; border-radius: 8px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box; }
+          .back-cover-section .text-overlay { background: ${currentBook.backCoverImage ? 'rgba(0,0,0,0.5)' : 'transparent'}; color: ${currentBook.backCoverImage ? 'white' : formattingOptions.textColor};}
           
-          .cover-title-container { width: 100%; display: flex; flex-direction: column; text-align: ${getTextAlignClass(currentBook.titlePosition).replace('text-','')}; justify-content: ${getVerticalAlignClass(currentBook.titlePosition).replace('justify-','')}; ${currentBook.titlePosition?.startsWith('middle') ? 'flex-grow: 1;' : ''} }
+          .cover-title-container, .back-cover-generic-container { width: 100%; display: flex; flex-direction: column; }
           .cover-section h1.book-title-cover { font-size: ${formattingOptions.coverTitleFontSize || 48}px; margin-bottom: 0.2em; text-shadow: ${currentBook.coverImage ? '2px 2px 5px rgba(0,0,0,0.8)' : 'none'}; }
           
-          .cover-subtitle-container { width: 100%; display: flex; flex-direction: column; text-align: ${getTextAlignClass(currentBook.subtitlePosition).replace('text-','')}; justify-content: ${getVerticalAlignClass(currentBook.subtitlePosition).replace('justify-','')}; ${currentBook.subtitlePosition?.startsWith('middle') && !currentBook.titlePosition?.startsWith('middle') ? 'flex-grow: 1;' : ''} }
+          .cover-subtitle-container { width: 100%; display: flex; flex-direction: column; }
           .cover-section h2.book-subtitle-cover { font-size: ${formattingOptions.coverSubtitleFontSize || 28}px; font-style: italic; margin-bottom: 1em; text-shadow: ${currentBook.coverImage ? '1px 1px 3px rgba(0,0,0,0.7)' : 'none'}; }
 
-          .cover-free-text-container { width: 100%; display: flex; flex-direction: column; text-align: ${getTextAlignClass(currentBook.coverFreeTextPosition).replace('text-','')}; justify-content: ${getVerticalAlignClass(currentBook.coverFreeTextPosition).replace('justify-','')}; ${currentBook.coverFreeTextPosition?.startsWith('middle') && !currentBook.titlePosition?.startsWith('middle') && !currentBook.subtitlePosition?.startsWith('middle') ? 'flex-grow: 1;' : ''} }
+          .cover-free-text-container { width: 100%; display: flex; flex-direction: column; }
           .cover-section p.cover-free-text { font-size: ${formattingOptions.fontSize * 1.2}px; margin-top: 1em; text-shadow: ${currentBook.coverImage ? '1px 1px 2px rgba(0,0,0,0.6)' : 'none'}; }
           
           .cover-author-container { width: 100%; display: flex; flex-direction: column; text-align: center; justify-content: flex-end; flex-grow: 1; }
           .cover-section p.author-name-main { font-size: ${formattingOptions.fontSize * 1.5}px; text-shadow: ${currentBook.coverImage ? '1px 1px 2px rgba(0,0,0,0.6)' : 'none'}; margin-top: 1em; ${!currentBook.authorImage && currentBook.editorialPosition !== 'bottom-center' ? `padding-bottom: ${formattingOptions.fontSize * 1.5}px;` : ''} }
 
-          .cover-editorial-container { width: 100%; position: absolute; left: 0; padding: 0 40px; box-sizing: border-box; text-align: ${getTextAlignClass(currentBook.editorialPosition).replace('text-','')}; z-index: 3;
-            ${(() => { const v = getVerticalAlignClass(currentBook.editorialPosition); if (v === 'justify-start') return 'top: 40px;'; if (v === 'justify-end') return 'bottom: 40px;'; return 'top: 50%; transform: translateY(-50%);'; })()}
-          }
+          .cover-editorial-container { width: 100%; position: absolute; left: 0; padding: 0 40px; box-sizing: border-box; z-index: 3;}
           .cover-section p.editorial-name-cover { font-size: ${formattingOptions.fontSize * 1}px; text-shadow: ${currentBook.coverImage ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none'}; }
 
           .author-photo-container-cover {
@@ -1251,8 +1408,9 @@ export default function EscribaLibroApp() {
           .content-image { max-width: 90%; max-height: 500px; height: auto; display: block; margin: 2em auto; border-radius: 5px; box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
           
           .html-paragraph { margin-bottom: ${formattingOptions.fontSize * 0.7}px; text-align: justify; text-indent: 1.5em; }
-          .html-paragraph.first-paragraph { text-indent: 0; } /* Removed first-letter-capital application from here */
-          
+          .html-paragraph.first-paragraph.first-letter-capital::first-letter, .html-paragraph.first-letter-capital::first-letter { font-size: 2.5em; font-weight: bold; float: left; line-height: 0.8; margin-right: 0.05em; padding-top:0.05em; color: hsl(var(--primary)); }
+          .html-paragraph.first-paragraph { text-indent: 0; }
+
           .toc { border: 1px solid #e0e0e0; padding: 20px 30px; margin-bottom: 35px; background-color: #f9f9f9; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
           .toc h2 { text-align: center; margin-top: 0; font-size: ${formattingOptions.fontSize * 1.6}px; margin-bottom: 20px; }
           .toc ul { list-style-type: none; padding-left: 0; }
@@ -1262,31 +1420,60 @@ export default function EscribaLibroApp() {
           .page-break-before { page-break-before: always; }
           .page-break-html { border-top: 1px dashed #ccc; margin: 2em 0; text-align: center; color: #aaa; font-size: 0.9em; }
           .page-break-html::before { content: "--- Salto de Página Manual ---"; }
+
+          .back-cover-section .text-overlay > div { text-align: var(--text-align); justify-content: var(--justify-content); position: absolute; inset: var(--inset); padding: 20px; display:flex; flex-direction: column; }
+          .back-cover-section .synopsis-text { font-size: ${formattingOptions.fontSize * 0.95}px; text-align: justify; text-shadow: ${currentBook.backCoverImage ? '1px 1px 2px rgba(0,0,0,0.7)' : 'none'};}
+          .back-cover-section .slogan-text { font-size: ${formattingOptions.fontSize * 1.15}px; font-style: italic; font-weight: bold; text-shadow: ${currentBook.backCoverImage ? '1px 1px 2px rgba(0,0,0,0.7)' : 'none'};}
+          .back-cover-section .author-name-back { font-size: ${formattingOptions.fontSize * 1}px; text-shadow: ${currentBook.backCoverImage ? '1px 1px 2px rgba(0,0,0,0.7)' : 'none'};}
+          .back-cover-section .back-cover-image-container { text-align: var(--text-align); justify-content: var(--justify-content); position: absolute; inset: var(--inset); padding: 20px; display:flex; flex-direction: column; }
+          .back-cover-section .back-cover-image-html { max-width: 60%; max-height: 40%; border-radius: 5px; box-shadow: 0 3px 8px rgba(0,0,0,0.3); margin: auto; display:block;}
+
         </style>
       </head>
       <body>
     `;
+    
+    // Helper for positioning text in HTML export
+    const getHtmlPositionStyles = (pos: CoverTextPosition | undefined) => {
+        let style = '';
+        let inset = 'auto';
+        let textAlign = 'center';
+        let justifyContent = 'center';
+
+        if (pos) {
+            if (pos.startsWith('top')) { inset = '20px auto auto auto'; justifyContent = 'flex-start'; }
+            else if (pos.startsWith('middle')) { inset = 'auto auto auto auto'; justifyContent = 'center'; }
+            else if (pos.startsWith('bottom')) { inset = 'auto auto 20px auto'; justifyContent = 'flex-end'; }
+
+            if (pos.includes('left')) { textAlign = 'left'; if (!pos.startsWith('middle')) inset = inset.replace('auto auto auto auto', '20px auto auto 20px'); else inset = 'auto auto auto 20px';}
+            else if (pos.includes('center')) { textAlign = 'center'; }
+            else if (pos.includes('right')) { textAlign = 'right'; if (!pos.startsWith('middle')) inset = inset.replace('auto auto auto auto', '20px 20px auto auto'); else inset = 'auto 20px auto auto';}
+        }
+        style += `--text-align: ${textAlign}; --justify-content: ${justifyContent}; --inset: ${inset};`;
+        return style;
+    };
+
 
     htmlString += '<div class="cover-section">\n';
     if (currentBook.coverImage) {
       htmlString += `  <img src="${currentBook.coverImage}" alt="Portada del Libro" class="cover-image-bg" data-ai-hint="book cover" />\n`;
     }
     htmlString += '  <div class="text-overlay">\n'; 
-    htmlString += `    <div class="cover-title-container"><h1 class="book-title-cover">${currentBook.title || 'Libro sin Título'}</h1></div>\n`;
+    htmlString += `    <div class="cover-title-container" style="${getHtmlPositionStyles(currentBook.titlePosition)}"><h1 class="book-title-cover">${currentBook.title || 'Libro sin Título'}</h1></div>\n`;
     if (currentBook.subtitle) {
-      htmlString += `    <div class="cover-subtitle-container"><h2 class="book-subtitle-cover">${currentBook.subtitle}</h2></div>\n`;
+      htmlString += `    <div class="cover-subtitle-container" style="${getHtmlPositionStyles(currentBook.subtitlePosition)}"><h2 class="book-subtitle-cover">${currentBook.subtitle}</h2></div>\n`;
     }
     if (currentBook.coverFreeText) {
-      htmlString += `    <div class="cover-free-text-container"><p class="cover-free-text">${currentBook.coverFreeText}</p></div>\n`;
+      htmlString += `    <div class="cover-free-text-container" style="${getHtmlPositionStyles(currentBook.coverFreeTextPosition)}"><p class="cover-free-text">${currentBook.coverFreeText}</p></div>\n`;
     }
      if (currentBook.editorial) { 
-        htmlString += `  <div class="cover-editorial-container"><p class="editorial-name-cover">${currentBook.editorial}</p></div>\n`;
+        htmlString += `  <div class="cover-editorial-container" style="${getHtmlPositionStyles(currentBook.editorialPosition)}"><p class="editorial-name-cover">${currentBook.editorial}</p></div>\n`;
     }
-    if (!(currentBook.editorial && currentBook.editorialPosition === 'bottom-center')) {
+    if (!(currentBook.editorial && currentBook.editorialPosition === 'bottom-center')) { // Default author position if editorial is not at bottom-center
         htmlString += `    <div class="cover-author-container"><p class="author-name-main">${currentBook.author || 'Autor Desconocido'}</p></div>\n`;
-    } else if (!currentBook.authorImage && currentBook.editorial && currentBook.editorialPosition === 'bottom-center') {
+    } else if (!currentBook.authorImage && currentBook.editorial && currentBook.editorialPosition === 'bottom-center') { // Add padding if no author image and editorial is at bottom
          htmlString += `    <div class="cover-author-container" style="padding-bottom: ${formattingOptions.fontSize * 2.5}px;"><p class="author-name-main">${currentBook.author || 'Autor Desconocido'}</p></div>\n`;
-    } else {
+    } else { // Default author position
         htmlString += `    <div class="cover-author-container"><p class="author-name-main">${currentBook.author || 'Autor Desconocido'}</p></div>\n`;
     }
 
@@ -1300,7 +1487,7 @@ export default function EscribaLibroApp() {
     htmlString += '</div>\n'; 
 
     const tocForHtml = generateTableOfContents(paginatedPreview, currentBook.chapters || []);
-    const tocHtml = (tocForHtml.length > 0) ? `
+    const tocHtml = (tocForHtml.length > 0 && formattingOptions.tocPosition !== 'none') ? `
       <div class="toc ${formattingOptions.tocPosition === 'start' ? '' : 'page-break-before'}">
         <h2>Índice</h2>
         <ul>
@@ -1340,8 +1527,10 @@ export default function EscribaLibroApp() {
 
           let pClass = "html-paragraph";
           if (firstParagraphInChapter && processedLine.trim() !== '') {
-            pClass += " first-paragraph"; 
+            pClass += " first-paragraph first-letter-capital"; 
             firstParagraphInChapter = false;
+          } else if (processedLine.trim() !== '') {
+            pClass += " first-letter-capital";
           } else if (processedLine.trim() === '') {
              pClass += " empty-paragraph"; 
           }
@@ -1357,8 +1546,34 @@ export default function EscribaLibroApp() {
     if (formattingOptions.tocPosition === 'end') {
       htmlString += tocHtml;
     }
-
     htmlString += '</div>\n'; 
+
+    // Back Cover HTML
+    if (currentBook.backCoverSynopsis || currentBook.backCoverSlogan || currentBook.backCoverImage || currentBook.author) {
+        htmlString += `<div class="back-cover-section page-break-before">\n`;
+        if (currentBook.backCoverImage) {
+            htmlString += `  <img src="${currentBook.backCoverImage}" alt="Imagen de Contraportada" class="back-cover-image-bg" data-ai-hint="texture abstract" />\n`;
+        }
+        htmlString += `  <div class="text-overlay">\n`;
+        if (currentBook.backCoverSynopsis) {
+            htmlString += `    <div style="${getHtmlPositionStyles(currentBook.backCoverSynopsisPosition)}"><p class="synopsis-text">${currentBook.backCoverSynopsis.replace(/\n/g, '<br>')}</p></div>\n`;
+        }
+        if (currentBook.backCoverSlogan) {
+            htmlString += `    <div style="${getHtmlPositionStyles(currentBook.backCoverSloganPosition)}"><p class="slogan-text">${currentBook.backCoverSlogan}</p></div>\n`;
+        }
+         if (currentBook.backCoverImage && !currentBook.backCoverImagePosition) { // Default image position if not set, but image exists
+            htmlString += `    <div class="back-cover-image-container" style="${getHtmlPositionStyles(currentBook.backCoverImagePosition || 'middle-center')}"><img src="${currentBook.backCoverImage}" class="back-cover-image-html" data-ai-hint="texture abstract" /></div>\n`;
+         } else if (currentBook.backCoverImage && currentBook.backCoverImagePosition) {
+             htmlString += `    <div class="back-cover-image-container" style="${getHtmlPositionStyles(currentBook.backCoverImagePosition)}"><img src="${currentBook.backCoverImage}" class="back-cover-image-html" data-ai-hint="texture abstract" /></div>\n`;
+         }
+
+        if (currentBook.author) {
+            htmlString += `    <div style="${getHtmlPositionStyles(currentBook.backCoverAuthorNamePosition)}"><p class="author-name-back">${currentBook.author}</p></div>\n`;
+        }
+        htmlString += `  </div>\n`; // close text-overlay
+        htmlString += `</div>\n`; // close back-cover-section
+    }
+
     htmlString += `
       </body>
       </html>
@@ -1388,7 +1603,7 @@ export default function EscribaLibroApp() {
     'top-left': 'top-4 left-4',
   };
   
-  const coverTextPositionClasses = (position: CoverTextPosition | undefined, elementType : 'title' | 'subtitle' | 'editorial' | 'freeText'): string => {
+  const coverTextPositionClasses = (position: CoverTextPosition | undefined, elementType : 'title' | 'subtitle' | 'editorial' | 'freeText' | 'backSynopsis' | 'backSlogan' | 'backImage' | 'backAuthorName'): string => {
     if (!position) return 'items-center justify-center text-center'; 
     
     let classes = 'absolute inset-0 flex flex-col p-3 md:p-4 z-10 pointer-events-none '; 
@@ -1402,6 +1617,19 @@ export default function EscribaLibroApp() {
     else if (position.includes('right')) classes += 'items-end text-right';
     
     return classes;
+  };
+
+  const renderTextElement = (text: string | undefined, baseFontSize: number, position: CoverTextPosition | undefined, additionalClasses: string = '', isHTML: boolean = false) => {
+    if (!text) return null;
+    return (
+      <div className={`${coverTextPositionClasses(position, 'freeText')} ${getTextAlignClass(position)}`}>
+        {isHTML ? (
+          <p className={`break-words ${additionalClasses}`} style={{ fontSize: `${baseFontSize}px` }} dangerouslySetInnerHTML={{ __html: text.replace(/\n/g, '<br>') }} />
+        ) : (
+          <p className={`break-words ${additionalClasses}`} style={{ fontSize: `${baseFontSize}px` }}>{text}</p>
+        )}
+      </div>
+    );
   };
 
 
@@ -1461,7 +1689,7 @@ export default function EscribaLibroApp() {
       </header>
 
       <Tabs defaultValue="editor" value={activeTab} onValueChange={setActiveTab} className="flex flex-col container mx-auto">
-        <TabsList className="mx-auto mb-6 shadow-sm w-full max-w-3xl grid grid-cols-2 sm:grid-cols-4">
+        <TabsList className="mx-auto mb-6 shadow-sm w-full max-w-4xl grid grid-cols-2 sm:grid-cols-5">
           <TabsTrigger value="editor" className="px-3 py-1.5 md:px-4 md:py-2 text-xs sm:text-sm">
             <BookOpen className="mr-1.5 h-4 w-4" /> Editor
           </TabsTrigger>
@@ -1473,6 +1701,9 @@ export default function EscribaLibroApp() {
           </TabsTrigger>
           <TabsTrigger value="cover" className="px-3 py-1.5 md:px-4 md:py-2 text-xs sm:text-sm">
             <Palette className="mr-1.5 h-4 w-4" /> Portada
+          </TabsTrigger>
+          <TabsTrigger value="backCover" className="px-3 py-1.5 md:px-4 md:py-2 text-xs sm:text-sm">
+            <BookCopy className="mr-1.5 h-4 w-4" /> Contraportada
           </TabsTrigger>
         </TabsList>
 
@@ -1607,13 +1838,14 @@ export default function EscribaLibroApp() {
                   )}
                    <div className="mt-4 space-y-2">
                       <Label htmlFor="tocPosition" className="text-sm font-medium">Posición del Índice (en PDF/HTML)</Label>
-                      <Select onValueChange={(value) => handleFormattingChange('tocPosition', value as 'start' | 'end')} value={formattingOptions.tocPosition}>
+                      <Select onValueChange={(value) => handleFormattingChange('tocPosition', value as 'start' | 'end' | 'none')} value={formattingOptions.tocPosition}>
                         <SelectTrigger id="tocPosition" className="mt-1 text-sm">
                           <SelectValue placeholder="Seleccionar posición del índice" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="start">Al Principio del Libro</SelectItem>
                           <SelectItem value="end">Al Final del Libro</SelectItem>
+                           <SelectItem value="none">No Incluir Índice</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1816,14 +2048,14 @@ export default function EscribaLibroApp() {
                          <div className={`${coverTextPositionClasses(currentBook.titlePosition, 'title')}`}>
                            <h3 
                             className="text-base font-bold text-white [text-shadow:1px_1px_2px_rgba(0,0,0,0.7)] break-words leading-tight"
-                            style={{ fontSize: `${Math.max(10, (formattingOptions.coverTitleFontSize || 48) * 0.4)}px`}} // Scale down for thumbnail
+                            style={{ fontSize: `${Math.max(10, (formattingOptions.coverTitleFontSize || 48) * 0.4)}px`}} 
                            >{currentBook.title}</h3>
                          </div>
                           {currentBook.subtitle && (
                             <div className={`${coverTextPositionClasses(currentBook.subtitlePosition, 'subtitle')}`}>
                                 <p 
                                  className="text-xs text-gray-200 [text-shadow:1px_1px_1px_rgba(0,0,0,0.5)] break-words mt-1"
-                                 style={{ fontSize: `${Math.max(8, (formattingOptions.coverSubtitleFontSize || 28) * 0.4)}px`}} // Scale down
+                                 style={{ fontSize: `${Math.max(8, (formattingOptions.coverSubtitleFontSize || 28) * 0.4)}px`}} 
                                 ><em>{currentBook.subtitle}</em></p>
                             </div>
                           )}
@@ -1857,6 +2089,84 @@ export default function EscribaLibroApp() {
                         <p className="text-xs text-center">Sube imágenes y añade detalles para la portada.</p>
                       </div>
                     )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="backCover" className="mt-0 flex-1 w-full">
+              <Card className="shadow-lg h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-xl md:text-2xl"><BookCopy className="mr-2 h-5 w-5 text-primary" />Diseñador de Contraportada</CardTitle>
+                  <CardDescription>Personaliza la contraportada de tu libro.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 p-4 md:p-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="backCoverSynopsis" className="text-sm font-medium">Sinopsis</Label>
+                    <Textarea id="backCoverSynopsis" value={currentBook.backCoverSynopsis || ''} onChange={(e) => handleBookDetailsChange('backCoverSynopsis', e.target.value)} placeholder="Escribe la sinopsis o resumen del libro aquí..." className="mt-1 text-sm p-2 shadow-inner min-h-[100px]"/>
+                    <Label htmlFor="backCoverSynopsisPosition" className="text-xs font-medium text-muted-foreground">Posición de la Sinopsis</Label>
+                    <Select onValueChange={(v) => handleCoverTextFieldChange('backCoverSynopsisPosition', v as CoverTextPosition)} value={currentBook.backCoverSynopsisPosition || 'middle-center'}>
+                        <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="top-left">Sup. Izq.</SelectItem><SelectItem value="top-center">Sup. Centro</SelectItem><SelectItem value="top-right">Sup. Der.</SelectItem>
+                            <SelectItem value="middle-left">Med. Izq.</SelectItem><SelectItem value="middle-center">Med. Centro</SelectItem><SelectItem value="middle-right">Med. Der.</SelectItem>
+                            <SelectItem value="bottom-left">Inf. Izq.</SelectItem><SelectItem value="bottom-center">Inf. Centro</SelectItem><SelectItem value="bottom-right">Inf. Der.</SelectItem>
+                        </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="backCoverSlogan" className="text-sm font-medium">Eslogan (Opcional)</Label>
+                    <Input id="backCoverSlogan" value={currentBook.backCoverSlogan || ''} onChange={(e) => handleBookDetailsChange('backCoverSlogan', e.target.value)} placeholder="Un eslogan corto y atractivo" className="mt-1 text-sm p-2 shadow-inner"/>
+                    <Label htmlFor="backCoverSloganPosition" className="text-xs font-medium text-muted-foreground">Posición del Eslogan</Label>
+                    <Select onValueChange={(v) => handleCoverTextFieldChange('backCoverSloganPosition', v as CoverTextPosition)} value={currentBook.backCoverSloganPosition || 'bottom-center'}>
+                       <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
+                       <SelectContent> {/* Options same as above */}
+                            <SelectItem value="top-left">Sup. Izq.</SelectItem><SelectItem value="top-center">Sup. Centro</SelectItem><SelectItem value="top-right">Sup. Der.</SelectItem>
+                            <SelectItem value="middle-left">Med. Izq.</SelectItem><SelectItem value="middle-center">Med. Centro</SelectItem><SelectItem value="middle-right">Med. Der.</SelectItem>
+                            <SelectItem value="bottom-left">Inf. Izq.</SelectItem><SelectItem value="bottom-center">Inf. Centro</SelectItem><SelectItem value="bottom-right">Inf. Der.</SelectItem>
+                        </SelectContent>
+                    </Select>
+                  </div>
+                   <div className="space-y-2">
+                    <Label htmlFor="backCoverAuthorNamePosition" className="text-xs font-medium">Posición Nombre del Autor</Label>
+                     <Select onValueChange={(v) => handleCoverTextFieldChange('backCoverAuthorNamePosition', v as CoverTextPosition)} value={currentBook.backCoverAuthorNamePosition || 'bottom-right'}>
+                       <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
+                       <SelectContent> {/* Options same as above */}
+                            <SelectItem value="top-left">Sup. Izq.</SelectItem><SelectItem value="top-center">Sup. Centro</SelectItem><SelectItem value="top-right">Sup. Der.</SelectItem>
+                            <SelectItem value="middle-left">Med. Izq.</SelectItem><SelectItem value="middle-center">Med. Centro</SelectItem><SelectItem value="middle-right">Med. Der.</SelectItem>
+                            <SelectItem value="bottom-left">Inf. Izq.</SelectItem><SelectItem value="bottom-center">Inf. Centro</SelectItem><SelectItem value="bottom-right">Inf. Der.</SelectItem>
+                        </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Imagen de Contraportada</Label>
+                    <div className="mt-1 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                      <Label htmlFor="backCoverImageUploadFile" className="cursor-pointer inline-flex items-center px-3 py-2 rounded-md border border-input bg-card hover:bg-accent hover:text-accent-foreground text-xs transition-colors duration-150">
+                        <UploadCloud className="mr-2 h-4 w-4" /> Subir Imagen
+                      </Label>
+                       <Input id="backCoverImageUploadFile" type="file" accept="image/*" onChange={handleBackCoverImageUpload} className="hidden" />
+                      {currentBook.backCoverImage && (
+                        <Button variant="outline" size="sm" onClick={() => setCurrentBook(prev => ({...prev, backCoverImage: null, lastModified: Date.now()}))} className="text-xs">Quitar Imagen</Button>
+                      )}
+                    </div>
+                     {currentBook.backCoverImage && (
+                       <div className="space-y-2 mt-2">
+                         <Label htmlFor="backCoverImagePosition" className="text-sm font-medium">Posición de Imagen</Label>
+                         <Select onValueChange={(value) => handleCoverTextFieldChange('backCoverImagePosition', value as CoverTextPosition)} value={currentBook.backCoverImagePosition || 'middle-center'}>
+                           <SelectTrigger id="backCoverImagePosition" className="mt-1 text-sm"><SelectValue /></SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="top-left">Sup. Izq.</SelectItem><SelectItem value="top-center">Sup. Centro</SelectItem><SelectItem value="top-right">Sup. Der.</SelectItem>
+                            <SelectItem value="middle-left">Med. Izq.</SelectItem><SelectItem value="middle-center">Med. Centro</SelectItem><SelectItem value="middle-right">Med. Der.</SelectItem>
+                            <SelectItem value="bottom-left">Inf. Izq.</SelectItem><SelectItem value="bottom-center">Inf. Centro</SelectItem><SelectItem value="bottom-right">Inf. Der.</SelectItem>
+                           </SelectContent>
+                         </Select>
+                       </div>
+                     )}
+                  </div>
+                  <div className="space-y-2">
+                      <Label htmlFor="backCoverColor" className="text-sm font-medium">Color de Fondo Contraportada</Label>
+                      <Input id="backCoverColor" type="color" value={currentBook.backCoverColor || '#FFFFFF'} onChange={(e) => handleBookDetailsChange('backCoverColor', e.target.value)} className="mt-1 h-10 p-1 w-full rounded-md border-2 border-input"/>
+                  </div>
+
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1926,6 +2236,33 @@ export default function EscribaLibroApp() {
                         </div>
                     )}
                   </div>
+                ) : activeTab === 'backCover' ? (
+                     <div className="p-3 md:p-4 border rounded-md aspect-[2/3] max-w-xs md:max-w-sm mx-auto flex flex-col shadow-lg overflow-hidden relative"
+                        style={{
+                            backgroundColor: currentBook.backCoverColor || formattingOptions.pageBackgroundColor,
+                            color: currentBook.backCoverImage ? 'white' : formattingOptions.textColor, // Adjust if image provides enough contrast
+                            fontFamily: formattingOptions.fontFamily,
+                        }}>
+                        {currentBook.backCoverImage && (
+                            <NextImage src={currentBook.backCoverImage} alt="Vista Previa de Contraportada" layout="fill" objectFit="cover" className="z-0" data-ai-hint="texture abstract"/>
+                        )}
+                        {!currentBook.backCoverImage && (
+                            <div className="w-full h-full bg-muted flex flex-col items-center justify-center text-muted-foreground">
+                                <ImageIcon size={60} className="opacity-50 mb-2" />
+                                <p className="text-sm">Sin imagen de contraportada</p>
+                            </div>
+                        )}
+                        {renderTextElement(currentBook.backCoverSynopsis, formattingOptions.fontSize * 0.9, currentBook.backCoverSynopsisPosition, `text-sm ${currentBook.backCoverImage ? 'text-white [text-shadow:1px_1px_2px_rgba(0,0,0,0.7)]' : ''}`, true)}
+                        {renderTextElement(currentBook.backCoverSlogan, formattingOptions.fontSize * 1.1, currentBook.backCoverSloganPosition, `font-semibold italic ${currentBook.backCoverImage ? 'text-white [text-shadow:1px_1px_2px_rgba(0,0,0,0.7)]' : ''}`)}
+                        {renderTextElement(currentBook.author, formattingOptions.fontSize * 0.95, currentBook.backCoverAuthorNamePosition, `${currentBook.backCoverImage ? 'text-white [text-shadow:1px_1px_2px_rgba(0,0,0,0.7)]' : ''}`)}
+                        
+                        {currentBook.backCoverImage && currentBook.backCoverImagePosition && (
+                            <div className={`${coverTextPositionClasses(currentBook.backCoverImagePosition, 'backImage')} flex items-center justify-center`}>
+                                {/* This is a simplified representation. True image positioning in preview is complex. */}
+                                {/* <NextImage src={currentBook.backCoverImage} alt="Imagen Contraportada" width={150} height={100} objectFit="contain" className="rounded shadow-md max-w-[60%] max-h-[40%]" /> */}
+                            </div>
+                        )}
+                    </div>
                 ) : paginatedPreview.length > 0 && currentPreviewPageData ? (
                   <div
                     key={`${currentPreviewPageData.pageNumber}-${currentPreviewPageIndex}`} 
@@ -1975,7 +2312,7 @@ export default function EscribaLibroApp() {
                   </div>
                 )}
               </CardContent>
-              {activeTab !== 'cover' && paginatedPreview.length > 0 && (
+              {(activeTab !== 'cover' && activeTab !== 'backCover') && paginatedPreview.length > 0 && (
                  <CardFooter className="flex items-center justify-center gap-3 py-3 border-t bg-muted/50">
                   <Button
                     variant="outline"
@@ -2000,7 +2337,7 @@ export default function EscribaLibroApp() {
                   </Button>
                 </CardFooter>
               )}
-               {activeTab !== 'cover' && paginatedPreview.length === 0 && (
+               {(activeTab !== 'cover' && activeTab !== 'backCover') && paginatedPreview.length === 0 && (
                 <CardFooter className="text-xs text-muted-foreground justify-center py-2.5 border-t bg-muted/50">
                   La vista previa aparecerá aquí.
                 </CardFooter>
@@ -2046,4 +2383,3 @@ export default function EscribaLibroApp() {
     </div>
   );
 }
-

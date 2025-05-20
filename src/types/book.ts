@@ -1,4 +1,5 @@
 
+
 export interface ChapterEntry { // For Table of Contents display
   title: string;
   estimatedPage: number;
@@ -31,6 +32,16 @@ export interface Book {
   editorialPosition?: CoverTextPosition;
   coverFreeTextPosition?: CoverTextPosition; 
   lastModified: number; 
+
+  // Back Cover Fields
+  backCoverSynopsis?: string;
+  backCoverSynopsisPosition?: CoverTextPosition;
+  backCoverSlogan?: string;
+  backCoverSloganPosition?: CoverTextPosition;
+  backCoverImage?: string | null;
+  backCoverImagePosition?: CoverTextPosition;
+  backCoverAuthorNamePosition?: CoverTextPosition;
+  backCoverColor?: string;
 }
 
 export interface FormattingOptions {
@@ -43,7 +54,6 @@ export interface FormattingOptions {
   lineHeight: number;
   pageNumberAlignment: 'left' | 'center' | 'right';
   tocPosition: 'start' | 'end' | 'none'; 
-  coverTitleFontSize?: number; // Added
-  coverSubtitleFontSize?: number; // Added
+  coverTitleFontSize?: number;
+  coverSubtitleFontSize?: number;
 }
-
