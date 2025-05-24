@@ -57,3 +57,4 @@ export interface FormattingOptions {
   coverTitleFontSize?: number;
   coverSubtitleFontSize?: number;
 }
+

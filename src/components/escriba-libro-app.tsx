@@ -1305,14 +1305,15 @@ export default function EscribaLibroApp() {
       let contentStartPageNumberInPdfActual = 1;
       if (pagesToRender.some(p => 'type' in p && p.type === 'cover')) contentStartPageNumberInPdfActual++;
       if (formattingOptions.tocPosition === 'start' && currentBook.chapters && currentBook.chapters.length > 0) {
-         contentStartPageNumberInPdfActual++;
+         // If TOC was already at start, this logic is a bit off, it means two TOCs.
+         // For now, let's assume user won't pick 'start' AND 'end' simultaneously.
+         // 'end' means 'before back cover'.
       }
-
 
       const tocEntriesForPdf = generateTableOfContents(contentPagesForPdfGeneration, currentBook.chapters)
         .map(entry => ({
           ...entry,
-          estimatedPage: contentStartPageNumberInPdfActual + entry.estimatedPage - 1
+          estimatedPage: contentStartPdfPageAfterTocAndCover + entry.estimatedPage - 1
         }));
       pagesToRender.push({ type: 'toc', title: 'Índice', entries: tocEntriesForPdf, pageNumberForFooter: tocPdfPageNumberForFooter });
     }
@@ -1519,8 +1520,13 @@ export default function EscribaLibroApp() {
     const generateTocHtmlBlock = (isStart: boolean) => {
       if (tocForHtml.length > 0 && formattingOptions.tocPosition !== 'none') {
         if ((isStart && formattingOptions.tocPosition === 'start') || (!isStart && formattingOptions.tocPosition === 'end')) {
+          let pageBreakClass = "page-break-before";
+          // No page break before TOC if it's immediately after cover
+          if (isStart && (currentBook.coverImage || currentBook.title)) {
+              pageBreakClass = "";
+          }
           return `
-            <div class="toc page-break-before">
+            <div class="toc ${pageBreakClass}">
               <h2>Índice</h2>
               <ul>
                 ${tocForHtml.map(entry => `<li><span class="toc-title">${entry.title.trim() === '' || entry.title === "Nuevo Capítulo" ? '(Capítulo sin título)' : entry.title}</span> <span class="toc-page">${entry.estimatedPage}</span></li>`).join('\n')}
@@ -1540,7 +1546,7 @@ export default function EscribaLibroApp() {
 
     let isFirstParagraphOverall = true;
     (currentBook.chapters || []).forEach((chapter, chapterIndex) => {
-        mainContentHtml += `<h2 class="chapter-title-html page-break-before">${chapter.title.trim() === '' || chapter.title === 'Nuevo Capítulo' ? '&nbsp;' : chapter.title}</h2>\n`;
+        mainContentHtml += `<h2 class="chapter-title-html ${chapterIndex > 0 || (formattingOptions.tocPosition === 'start' && tocForHtml.length > 0) ? 'page-break-before' : ''}">${chapter.title.trim() === '' || chapter.title === 'Nuevo Capítulo' ? '&nbsp;' : chapter.title}</h2>\n`;
         let firstParagraphInChapter = true;
         const chapterLines = chapter.content.split('\n');
         chapterLines.forEach(line => {
@@ -1581,16 +1587,12 @@ export default function EscribaLibroApp() {
         });
     });
 
-    mainContentHtml += fullContentForHtml;
 
     if (formattingOptions.tocPosition === 'end') {
-        if (currentBook.backCoverSynopsis || currentBook.backCoverSlogan || currentBook.backCoverImage || currentBook.author) {
-             // If back cover exists, TOC goes before it.
-        }
         mainContentHtml += generateTocHtmlBlock(false);
     }
     
-    htmlString += `<div class="book-container page-break-before">${mainContentHtml}</div>\n`;
+    htmlString += `<div class="book-container ${ (formattingOptions.tocPosition === 'start' && tocForHtml.length > 0) || (!currentBook.coverImage && !currentBook.title) ? '' : 'page-break-before'}">${mainContentHtml}</div>\n`;
 
 
     // Back Cover HTML
@@ -1606,7 +1608,7 @@ export default function EscribaLibroApp() {
         if (currentBook.backCoverSlogan) {
             htmlString += `    <div class="back-cover-slogan-container" style="${getHtmlPositionStyles(currentBook.backCoverSloganPosition, 'flex-end')}"><p class="slogan-text">${currentBook.backCoverSlogan}</p></div>\n`;
         }
-         if (currentBook.backCoverImage && currentBook.backCoverImagePosition && !currentBook.backCoverImagePosition.includes('background')) { // Example condition
+         if (currentBook.backCoverImage && currentBook.backCoverImagePosition && !currentBook.backCoverImagePosition.includes('background')) { 
             htmlString += `    <div class="back-cover-image-html-container" style="${getHtmlPositionStyles(currentBook.backCoverImagePosition || 'middle-center', 'center')}"><img src="${currentBook.backCoverImage}" class="back-cover-image-html" data-ai-hint="texture design" /></div>\n`;
          }
 
@@ -1783,11 +1785,11 @@ export default function EscribaLibroApp() {
                   {currentEditingChapter && (
                     <div className="space-y-3">
                         <div className="space-y-1">
-                            <Label htmlFor="chapterTitle" className="text-sm font-medium">Título del Capítulo:</Label>
+                             <Label htmlFor="chapterTitle" className="text-sm font-medium">Título del Capítulo:</Label>
                             <div className="flex items-center gap-2">
                                 <Input
                                     id="chapterTitle"
-                                    value={currentEditingChapter.title === 'Nuevo Capítulo' && !currentEditingChapter.content ? '' : currentEditingChapter.title}
+                                    value={currentEditingChapter.title}
                                     onChange={(e) => handleChapterTitleChange(currentEditingChapter.id, e.target.value)}
                                     placeholder="Título del Capítulo"
                                     className="flex-grow text-sm p-2 shadow-inner"
@@ -1988,7 +1990,7 @@ export default function EscribaLibroApp() {
                 <CardContent className="space-y-4 p-4 md:p-6">
                   <div className="space-y-2">
                     <Label htmlFor="bookTitleInput" className="text-sm font-medium">Título del Libro</Label>
-                    <Input id="bookTitleInput" value={currentBook.title === 'Libro sin Título' && !currentBook.chapters[0]?.content ? '' : currentBook.title} onChange={(e) => handleBookDetailsChange('title', e.target.value)} placeholder="El Título de tu Gran Libro" className="mt-1 text-sm p-2 shadow-inner"/>
+                    <Input id="bookTitleInput" value={currentBook.title} onChange={(e) => handleBookDetailsChange('title', e.target.value)} placeholder="El Título de tu Gran Libro" className="mt-1 text-sm p-2 shadow-inner"/>
                     <Label htmlFor="titlePosition" className="text-xs font-medium text-muted-foreground">Posición del Título</Label>
                     <Select onValueChange={(v) => handleCoverTextFieldChange('titlePosition', v as CoverTextPosition)} value={currentBook.titlePosition || 'middle-center'}>
                         <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
@@ -2027,7 +2029,7 @@ export default function EscribaLibroApp() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="authorName" className="text-sm font-medium">Nombre del Autor/a</Label>
-                    <Input id="authorName" value={currentBook.author === 'Autor Desconocido' && !currentBook.chapters[0]?.content ? '' : currentBook.author} onChange={(e) => handleBookDetailsChange('author', e.target.value)} placeholder="Tu Nombre como Autor/a" className="mt-1 text-sm p-2 shadow-inner"/>
+                    <Input id="authorName" value={currentBook.author} onChange={(e) => handleBookDetailsChange('author', e.target.value)} placeholder="Tu Nombre como Autor/a" className="mt-1 text-sm p-2 shadow-inner"/>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="coverFreeTextInput" className="text-sm font-medium">Texto Adicional en Portada (Opcional)</Label>
@@ -2300,7 +2302,7 @@ export default function EscribaLibroApp() {
                         {renderTextElement(currentBook.backCoverSlogan, formattingOptions.fontSize * 1.1, currentBook.backCoverSloganPosition, 'backSlogan', `font-semibold italic ${currentBook.backCoverImage ? 'text-white [text-shadow:1px_1px_2px_rgba(0,0,0,0.7)]' : ''}`)}
                         {renderTextElement(currentBook.author === 'Autor Desconocido' ? '' : currentBook.author, formattingOptions.fontSize * 0.95, currentBook.backCoverAuthorNamePosition, 'backAuthorName', `${currentBook.backCoverImage ? 'text-white [text-shadow:1px_1px_2px_rgba(0,0,0,0.7)]' : ''}`)}
                         
-                        {currentBook.backCoverImage && currentBook.backCoverImagePosition && !currentBook.backCoverImagePosition.includes("background") && ( // Prevent double rendering if image is BG
+                        {currentBook.backCoverImage && currentBook.backCoverImagePosition && !currentBook.backCoverImagePosition.includes("background") && ( 
                            <div className={`${coverTextPositionClasses(currentBook.backCoverImagePosition, 'backImage')} flex items-center justify-center`}>
                              <div className="relative w-[60%] h-[40%] max-w-[200px] max-h-[150px]">
                                 <NextImage src={currentBook.backCoverImage} alt="Imagen Contraportada" layout="fill" objectFit="contain" className="rounded shadow-md" data-ai-hint="texture design" />
@@ -2428,3 +2430,4 @@ export default function EscribaLibroApp() {
     </div>
   );
 }
+
