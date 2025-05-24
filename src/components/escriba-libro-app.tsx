@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import NextImage from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { UploadCloud, BookOpen, Type, User, Settings, Palette, FileText, Image as ImageIcon, Paintbrush, Save, Loader2, ListOrdered, FolderOpen, FileDown, FileCode, FilePlus, Trash2, ChevronLeft, ChevronRight, UserSquare2, FileSearch, Building, AlignLeft, AlignCenter, AlignRight, BookIcon, Feather, Edit3, PlusCircle, HelpCircle, BookCopy } from 'lucide-react';
+import { UploadCloud, BookIcon, Type, User, Settings, Palette, FileText, Image as ImageIcon, Paintbrush, Save, Loader2, ListOrdered, FolderOpen, FileDown, FileCode, FilePlus, Trash2, ChevronLeft, ChevronRight, UserSquare2, FileSearch, Building, AlignLeft, AlignCenter, AlignRight, Feather, Edit3, PlusCircle, HelpCircle, BookCopy } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -1943,7 +1943,7 @@ export default function EscribaLibroApp() {
         {/* Tab Triggers */}
         <TabsList className="mx-auto mb-6 shadow-sm w-full max-w-4xl grid grid-cols-2 sm:grid-cols-5">
           <TabsTrigger value="editor" className="px-3 py-1.5 md:px-4 md:py-2 text-xs sm:text-sm">
-            <BookOpen className="mr-1.5 h-4 w-4" /> Editor
+            <Edit3 className="mr-1.5 h-4 w-4" /> Editor
           </TabsTrigger>
            <TabsTrigger value="index" className="px-3 py-1.5 md:px-4 md:py-2 text-xs sm:text-sm">
             <ListOrdered className="mr-1.5 h-4 w-4" /> Índice
@@ -1969,7 +1969,7 @@ export default function EscribaLibroApp() {
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl md:text-2xl"><BookIcon className="mr-2 h-5 w-5 text-primary" />Editor de Contenido</CardTitle>
                    <CardDescription>
-                    Gestiona tus capítulos. Usa `\newpage` en el contenido para saltos de página manuales.
+                    Manage your chapters. Use `\newpage` in the content for manual page breaks.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 md:p-6 space-y-4">
@@ -2324,7 +2324,7 @@ export default function EscribaLibroApp() {
                   {(currentBook.coverImage || currentBook.authorImage || (currentBook.title && currentBook.title !== '') || currentBook.subtitle || currentBook.editorial || currentBook.coverFreeText) && (
                        <div className="mt-4 p-2 border rounded-md aspect-[2/3] w-full max-w-[240px] mx-auto bg-muted flex flex-col shadow-inner overflow-hidden relative">
                          {/* Cover Image */}
-                         {currentBook.coverImage && <NextImage src={currentBook.coverImage} alt="Miniatura de Portada" layout="fill" objectFit="cover" data-ai-hint="book cover" />}
+                         {currentBook.coverImage && <NextImage src={currentBook.coverImage} alt="Miniatura de Portada" layout="fill" objectFit="cover" data-ai-hint="book cover"/>}
                          
                          {/* Title Text */}
                          <div className={`${coverTextPositionClasses(currentBook.titlePosition, 'title')}`}>
@@ -2552,7 +2552,7 @@ export default function EscribaLibroApp() {
                         {currentBook.backCoverImage && currentBook.backCoverImagePosition && !currentBook.backCoverImagePosition.includes("background") && currentBook.backCoverImagePosition !== "middle-center" && ( 
                            <div className={`${coverTextPositionClasses(currentBook.backCoverImagePosition, 'backImage')} flex items-center justify-center`}>
                              <div className="relative w-[60%] h-[40%] max-w-[200px] max-h-[150px]">
-                                <NextImage src={currentBook.backCoverImage} alt="Imagen Contraportada" layout="fill" objectFit="contain" className="rounded shadow-md" data-ai-hint="texture design" />
+                                <NextImage src={currentBook.backCoverImage} alt="Imagen Contraportada" layout="fill" objectFit="contain" className="rounded shadow-md" data-ai-hint="texture design"/>
                              </div>
                            </div>
                         )}
