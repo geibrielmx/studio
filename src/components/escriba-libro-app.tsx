@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const APP_VERSION = "1.2.2"; 
+const APP_VERSION = "1.2.1"; 
 const COPYRIGHT_NOTICE = `© ${new Date().getFullYear()} GaboGmx. Todos los derechos reservados.`;
 
 const PAGE_CONTENT_TARGET_HEIGHT_PX = 680;
@@ -99,7 +99,7 @@ function createPageContentElements(
 ): { elements: JSX.Element[], chapterTitle?: string, isStartOfChapter?: boolean } {
   let isStartOfChapter = false;
   let chapterTitle: string | undefined = undefined;
-  //let firstParagraphAfterHeading = false; // Removed as per user request to remove first letter caps
+  let firstParagraphAfterHeading = false;
 
   const elements = lines.map((paragraph, index) => {
     if (paragraph.trim() === PAGE_BREAK_MARKER) {
@@ -111,13 +111,13 @@ function createPageContentElements(
         isStartOfChapter = true;
         chapterTitle = paragraph.substring(3).trim();
         isChapterHeadingLine = true;
-        //firstParagraphAfterHeading = true; 
+        firstParagraphAfterHeading = true; 
       }
     }
     const imageMatch = paragraph.match(/!\[(.*?)\]\((data:image\/.*?)\)/);
     if (imageMatch) {
       const [, altText, imgSrc] = imageMatch;
-      //firstParagraphAfterHeading = false;
+      firstParagraphAfterHeading = false;
       return (
         <div key={`${pageKeyPrefix}-line-${index}`} className="my-3 md:my-4 text-center">
           <NextImage
@@ -136,19 +136,18 @@ function createPageContentElements(
       );
     } else if (paragraph.match(/!\[(.*?)\]\((.*?)\)/)) {
         const [, altText] = paragraph.match(/!\[(.*?)\]\((.*?)\)/)!;
-        //firstParagraphAfterHeading = false;
+        firstParagraphAfterHeading = false;
         return <p key={`${pageKeyPrefix}-line-${index}`} className="my-1.5 md:my-2 italic text-muted-foreground text-center">[Imagen: {altText || 'Referencia de imagen externa'}]</p>;
     }
     
-    // Removed first-letter-capital logic from pClassName
     let pClassName = `my-1.5 md:my-2 book-paragraph ${isChapterHeadingLine ? 'chapter-heading font-bold text-xl md:text-2xl !text-left !indent-0 !pl-0 !pt-4 !pb-2 border-b-2 border-primary mb-4' : ''}`;
     
-    // if (!isChapterHeadingLine && firstParagraphAfterHeading && paragraph.trim() !== '') {
-    //    pClassName += ' first-paragraph-after-heading'; // Removed: ' first-letter-capital'
-    //    firstParagraphAfterHeading = false; 
-    // } else if (!isChapterHeadingLine && paragraph.trim() !== '' && paragraph.trim() !== '&nbsp;') {
-    //    // pClassName += ' normal-paragraph'; // Removed: ' first-letter-capital'
-    // }
+    if (!isChapterHeadingLine && firstParagraphAfterHeading && paragraph.trim() !== '') {
+       pClassName += ' first-paragraph-after-heading first-letter-capital';
+       firstParagraphAfterHeading = false; 
+    } else if (!isChapterHeadingLine && paragraph.trim() !== '' && paragraph.trim() !== '&nbsp;') {
+       pClassName += ' normal-paragraph first-letter-capital';
+    }
 
 
     const pContent = isChapterHeadingLine ? paragraph.substring(3).trim() : (paragraph.trim() === '' ? <>&nbsp;</> : paragraph
@@ -1272,6 +1271,11 @@ export default function EscribaLibroApp() {
       const tocPdfPageNumberForFooter = pdfPageCounter;
       let contentStartPageNumberInPdfActual = 1;
       if (pagesToRender.some(p => 'type' in p && p.type === 'cover')) contentStartPageNumberInPdfActual++;
+      // If TOC at start also exists, increment the start page for content
+      if (formattingOptions.tocPosition === 'start' && currentBook.chapters && currentBook.chapters.length > 0) {
+         contentStartPageNumberInPdfActual++;
+      }
+
 
       const tocEntriesForPdf = generateTableOfContents(contentPagesForPdfGeneration, currentBook.chapters)
         .map(entry => ({
@@ -1478,19 +1482,26 @@ export default function EscribaLibroApp() {
 
     const tocForHtml = generateTableOfContents(paginatedPreview, currentBook.chapters || []);
     
-    const generateTocHtmlBlock = () => (tocForHtml.length > 0 && formattingOptions.tocPosition !== 'none') ? `
-      <div class="toc">
-        <h2>Índice</h2>
-        <ul>
-          ${tocForHtml.map(entry => `<li><span class="toc-title">${entry.title}</span> <span class="toc-page">${entry.estimatedPage}</span></li>`).join('\n')}
-        </ul>
-      </div>
-    ` : '';
+    const generateTocHtmlBlock = (isStart: boolean) => {
+      if (tocForHtml.length > 0 && formattingOptions.tocPosition !== 'none') {
+        if ((isStart && formattingOptions.tocPosition === 'start') || (!isStart && formattingOptions.tocPosition === 'end')) {
+          return `
+            <div class="toc page-break-before">
+              <h2>Índice</h2>
+              <ul>
+                ${tocForHtml.map(entry => `<li><span class="toc-title">${entry.title}</span> <span class="toc-page">${entry.estimatedPage}</span></li>`).join('\n')}
+              </ul>
+            </div>
+          `;
+        }
+      }
+      return '';
+    };
     
     let mainContentHtml = "";
 
     if (formattingOptions.tocPosition === 'start') {
-      mainContentHtml += generateTocHtmlBlock();
+      mainContentHtml += generateTocHtmlBlock(true);
     }
 
     const fullContentForHtml = (currentBook.chapters || [])
@@ -1518,8 +1529,10 @@ export default function EscribaLibroApp() {
 
           let pClass = "html-paragraph";
           if (firstParagraphInChapter && processedLine.trim() !== '') {
-            pClass += " first-paragraph"; // Removed first-letter-capital
+            pClass += " first-paragraph first-letter-capital";
             firstParagraphInChapter = false;
+          } else if (processedLine.trim() !== '' && processedLine.trim() !== '&nbsp;'){
+             pClass += " first-letter-capital";
           } else if (processedLine.trim() === '') {
              pClass += " empty-paragraph"; 
           }
@@ -1533,7 +1546,7 @@ export default function EscribaLibroApp() {
     mainContentHtml += fullContentForHtml;
 
     if (formattingOptions.tocPosition === 'end') {
-      mainContentHtml += generateTocHtmlBlock();
+      mainContentHtml += generateTocHtmlBlock(false);
     }
     
     htmlString += `<div class="book-container page-break-before">${mainContentHtml}</div>\n`;
@@ -1552,7 +1565,7 @@ export default function EscribaLibroApp() {
         if (currentBook.backCoverSlogan) {
             htmlString += `    <div class="back-cover-slogan-container" style="${getHtmlPositionStyles(currentBook.backCoverSloganPosition, 'flex-end')}"><p class="slogan-text">${currentBook.backCoverSlogan}</p></div>\n`;
         }
-         if (currentBook.backCoverImage) {
+         if (currentBook.backCoverImage && currentBook.backCoverImagePosition) {
             htmlString += `    <div class="back-cover-image-html-container" style="${getHtmlPositionStyles(currentBook.backCoverImagePosition || 'center', 'center')}"><img src="${currentBook.backCoverImage}" class="back-cover-image-html" data-ai-hint="texture abstract" /></div>\n`;
          }
 
@@ -1677,7 +1690,7 @@ export default function EscribaLibroApp() {
         <p className="text-sm md:text-base text-muted-foreground mt-2 text-center sm:text-left container mx-auto">Crea tu historia, hermosamente.</p>
       </header>
 
-      <Tabs defaultValue="editor" value={activeTab} onValueChange={setActiveTab} className="flex flex-col container mx-auto flex-1 min-h-0">
+      <Tabs defaultValue="editor" value={activeTab} onValueChange={setActiveTab} className="flex flex-col container mx-auto">
         <TabsList className="mx-auto mb-6 shadow-sm w-full max-w-4xl grid grid-cols-2 sm:grid-cols-5">
           <TabsTrigger value="editor" className="px-3 py-1.5 md:px-4 md:py-2 text-xs sm:text-sm">
             <BookOpen className="mr-1.5 h-4 w-4" /> Editor
@@ -1696,17 +1709,17 @@ export default function EscribaLibroApp() {
           </TabsTrigger>
         </TabsList>
 
-        <div className="flex flex-1 flex-col lg:flex-row gap-6 min-h-0"> {/* Added min-h-0 */}
-          <div className="w-full lg:w-1/2 flex flex-col gap-6 min-h-0"> {/* Added min-h-0 */}
-            <TabsContent value="editor" className="mt-0 flex-1 w-full flex flex-col min-h-0"> {/* Added flex flex-col min-h-0 */}
-              <Card className="shadow-lg flex-1 flex flex-col min-h-0"> {/* Added flex-1 flex flex-col min-h-0 */}
+        <div className="flex flex-1 flex-col lg:flex-row gap-6">
+          <div className="w-full lg:w-1/2 flex flex-col gap-6">
+            <TabsContent value="editor" className="mt-0 flex-1 w-full">
+              <Card className="shadow-lg h-full">
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl md:text-2xl"><BookOpen className="mr-2 h-5 w-5 text-primary" />Editor de Contenido</CardTitle>
                    <CardDescription>
                     Gestiona tus capítulos. Usa `\newpage` en el contenido para saltos de página manuales.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex-1 flex flex-col p-4 md:p-6 space-y-4 overflow-y-auto min-h-0"> {/* Added overflow-y-auto min-h-0 */}
+                <CardContent className="p-4 md:p-6 space-y-4">
                   <div className="flex items-center gap-2">
                     <Select 
                         value={editingChapterId || ""} 
@@ -1727,7 +1740,7 @@ export default function EscribaLibroApp() {
                   </div>
 
                   {currentEditingChapter && (
-                    <div className="space-y-3 flex-1 flex flex-col min-h-0"> {/* Added min-h-0 */}
+                    <div className="space-y-3">
                         <div className="space-y-1">
                             <Label htmlFor="chapterTitle" className="text-sm font-medium">Título del Capítulo:</Label>
                             <div className="flex items-center gap-2">
@@ -1769,7 +1782,7 @@ export default function EscribaLibroApp() {
                             value={currentEditingChapter.content}
                             onChange={(e) => handleChapterContentChange(currentEditingChapter.id, e.target.value)}
                             placeholder="Escribe el contenido de este capítulo aquí..."
-                            className="flex-1 w-full min-h-[250px] md:min-h-[350px] text-sm p-3 rounded-md shadow-inner bg-background/70 border-input focus:bg-background"
+                            className="w-full min-h-[250px] md:min-h-[350px] text-sm p-3 rounded-md shadow-inner bg-background/70 border-input focus:bg-background"
                         />
                     </div>
                   )}
@@ -1800,13 +1813,13 @@ export default function EscribaLibroApp() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="index" className="mt-0 flex-1 w-full flex flex-col min-h-0"> {/* Added min-h-0 */}
-              <Card className="shadow-lg h-full flex flex-col">
+            <TabsContent value="index" className="mt-0 flex-1 w-full">
+              <Card className="shadow-lg h-full">
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl md:text-2xl"><ListOrdered className="mr-2 h-5 w-5 text-primary" />Índice de Capítulos</CardTitle>
                   <CardDescription>Generado de los títulos de tus capítulos. Las páginas son estimaciones de la vista previa.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 md:p-6 flex-1 overflow-y-auto min-h-0"> {/* Added flex-1 overflow-y-auto min-h-0 */}
+                <CardContent className="p-4 md:p-6">
                   {(displayedTableOfContents.length > 0) ? (
                     <ScrollArea className="h-[300px] md:h-[400px] pr-3 border rounded-md p-3 bg-background/50">
                       <ul className="space-y-2">
@@ -1842,15 +1855,15 @@ export default function EscribaLibroApp() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="formatting" className="mt-0 flex-1 w-full flex flex-col min-h-0"> {/* Added min-h-0 */}
-              <Card className="shadow-lg h-full flex flex-col">
+            <TabsContent value="formatting" className="mt-0 flex-1 w-full">
+              <Card className="shadow-lg h-full">
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl md:text-2xl">
                     <Paintbrush className="mr-2 h-5 w-5 text-primary" /> Opciones de Formato
                   </CardTitle>
                   <CardDescription>Personaliza la apariencia. Se guardan en tu navegador.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 p-4 md:p-6 flex-1 overflow-y-auto min-h-0"> {/* Added flex-1 overflow-y-auto min-h-0 */}
+                <CardContent className="space-y-6 p-4 md:p-6">
                   <div className="space-y-2">
                     <Label htmlFor="fontFamily" className="text-sm font-medium">Fuente Principal (Contenido)</Label>
                     <Select onValueChange={(value) => handleFormattingChange('fontFamily', value)} value={formattingOptions.fontFamily}>
@@ -1925,13 +1938,13 @@ export default function EscribaLibroApp() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="cover" className="mt-0 flex-1 w-full flex flex-col min-h-0"> {/* Added min-h-0 */}
-              <Card className="shadow-lg h-full flex flex-col">
+            <TabsContent value="cover" className="mt-0 flex-1 w-full">
+              <Card className="shadow-lg h-full">
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl md:text-2xl"><Palette className="mr-2 h-5 w-5 text-primary" />Diseñador de Portada</CardTitle>
                   <CardDescription>Personaliza portada. Imágenes para esta sesión (no en TXT).</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 p-4 md:p-6 flex-1 overflow-y-auto min-h-0"> {/* Added flex-1 overflow-y-auto min-h-0 */}
+                <CardContent className="space-y-4 p-4 md:p-6">
                   <div className="space-y-2">
                     <Label htmlFor="bookTitleInput" className="text-sm font-medium">Título del Libro</Label>
                     <Input id="bookTitleInput" value={currentBook.title || ''} onChange={(e) => handleBookDetailsChange('title', e.target.value)} placeholder="El Título de tu Gran Libro" className="mt-1 text-sm p-2 shadow-inner"/>
@@ -2082,13 +2095,13 @@ export default function EscribaLibroApp() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="backCover" className="mt-0 flex-1 w-full flex flex-col min-h-0"> {/* Added min-h-0 */}
-              <Card className="shadow-lg h-full flex flex-col">
+            <TabsContent value="backCover" className="mt-0 flex-1 w-full">
+              <Card className="shadow-lg h-full">
                 <CardHeader>
                   <CardTitle className="flex items-center text-xl md:text-2xl"><BookCopy className="mr-2 h-5 w-5 text-primary" />Diseñador de Contraportada</CardTitle>
                   <CardDescription>Personaliza la contraportada de tu libro.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 p-4 md:p-6 flex-1 overflow-y-auto min-h-0"> {/* Added flex-1 overflow-y-auto min-h-0 */}
+                <CardContent className="space-y-4 p-4 md:p-6">
                   <div className="space-y-2">
                     <Label htmlFor="backCoverSynopsis" className="text-sm font-medium">Sinopsis</Label>
                     <Textarea id="backCoverSynopsis" value={currentBook.backCoverSynopsis || ''} onChange={(e) => handleBookDetailsChange('backCoverSynopsis', e.target.value)} placeholder="Escribe la sinopsis o resumen del libro aquí..." className="mt-1 text-sm p-2 shadow-inner min-h-[100px]"/>
@@ -2161,17 +2174,18 @@ export default function EscribaLibroApp() {
             </TabsContent>
           </div>
 
-          <div className="w-full lg:w-1/2 lg:sticky lg:top-8 flex flex-col min-h-0">  {/* Added flex flex-col min-h-0 */}
-            <Card className="shadow-lg flex-1 flex flex-col min-h-0"> {/* Added flex-1 flex flex-col min-h-0 */}
+          <div className="w-full lg:w-1/2 lg:sticky lg:top-8">
+            <Card className="shadow-lg h-full">
               <CardHeader>
                 <CardTitle className="flex items-center text-xl md:text-2xl"><FileSearch className="mr-2 h-5 w-5 text-primary" />Vista Previa en Vivo</CardTitle>
                 <CardDescription>Observa cómo tu libro toma forma. La paginación es aproximada.</CardDescription>
               </CardHeader>
               <CardContent
-                className="p-3 md:p-4 flex-1 overflow-y-auto min-h-0"  // Added flex-1 overflow-y-auto min-h-0
+                className="p-3 md:p-4 overflow-y-auto"
                 style={{
                   backgroundColor: formattingOptions.previewBackgroundColor,
                   borderRadius: 'var(--radius)', 
+                  maxHeight: 'calc(100vh - 180px)', // Adjust as needed
                 }}
               >
                 {activeTab === 'cover' ? (
